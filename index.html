@@ -605,6 +605,23 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
     .map(([label,value]) => ({ label, value }));
   materialType.push({ label:"Sin material", value:sinMat, negative:true });
 
+  /* ── materialPhysType: materiales FÍSICOS colocados en Interior ──
+     (no confundir con materialType, que es el tipo de OFERTA asignada).
+     Sale de MATERIAL_CORRESPONDE_TIPO, puede traer varios materiales
+     separados por coma. Se normaliza el formato de paréntesis para que
+     coincida con el mismo material reportado en Central (ej. "Tabletent
+     mostrador (18x25cm)" en Interior = "Tabletent mostrador 18x25cm" en Central). */
+  const physMap = {};
+  rawG.forEach(r => {
+    if (!YES(r.HAY_MATERIAL_DESIGNADO)) return;
+    const raw = N(r.MATERIAL_CORRESPONDE_TIPO);
+    if (!raw) return;
+    raw.split(",").forEach(m => { const v = m.replace(/[()]/g,"").replace(/\s+/g," ").trim(); if (v) physMap[v] = (physMap[v]||0) + 1; });
+  });
+  const materialPhysType = Object.entries(physMap).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([label,value])=>({label,value}));
+  materialPhysType.push({ label:"Sin material", value:sinMat, negative:true });
+
   /* ── materialState ── */
   const stateMap = {};
   rawG.filter(r => YES(r.HAY_MATERIAL_DESIGNADO)).forEach(r => {
@@ -703,8 +720,9 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
   ].filter(x => x.value > 0);
 
   /* ── locales (gastro detail) ── */
+  const fixCityName = c => N(c).replace("Encarnacion","Encarnación").replace("Concepcion","Concepción");
   const locales = rawG.map(r => ({
-    name: N(r.LOCAL), city: N(r.CIUDAD),
+    name: N(r.LOCAL), city: fixCityName(r.CIUDAD),
     type: N(r.TIPO_LOCAL)||"—",
     material: YES(r.HAY_MATERIAL_DESIGNADO),
     state: N(r.BENEFICIO_EXHIBIDO||r.ESTADO_MATERIAL)||"—",
@@ -812,6 +830,23 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
     .map(([label,value])=>({label,value}));
   gcMaterialType.push({label:"Sin material",value:gcSinMat,negative:true});
 
+  /* ── gcMaterialPhysType: materiales FÍSICOS colocados en Central ──
+     (no confundir con gcMaterialType, que es el tipo de OFERTA asignada).
+     Sale de MATERIAL_CORRESPONDE_TIPO_A / _B: en cada fila solo una de las
+     dos columnas viene completa (cartel, tabletent, saliente, calco, etc.),
+     puede traer varios materiales separados por coma. */
+  const normMat = s => N(s).replace(/[()]/g, "").replace(/\s+/g, " ").trim();
+  const gcPhysMap = {};
+  rawGC.forEach(r => {
+    if (!YES(GC_MAT(r))) return;
+    const raw = N(r["MATERIAL_CORRESPONDE_TIPO_A"]) || N(r["MATERIAL_CORRESPONDE_TIPO_B"]);
+    if (!raw) return;
+    raw.split(",").forEach(m => { const v = normMat(m); if (v) gcPhysMap[v] = (gcPhysMap[v]||0) + 1; });
+  });
+  const gcMaterialPhysType = Object.entries(gcPhysMap).sort((a,b)=>b[1]-a[1]).slice(0,8)
+    .map(([label,value])=>({label,value}));
+  gcMaterialPhysType.push({label:"Sin material",value:gcSinMat,negative:true});
+
   const gcStateMap = {};
   rawGC.filter(r=>YES(GC_MAT(r))).forEach(r=>{ const v=GC_BENE(r); if(v) gcStateMap[v]=(gcStateMap[v]||0)+1; });
   const gcMaterialState = Object.entries(gcStateMap).sort((a,b)=>b[1]-a[1])
@@ -858,11 +893,11 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
 
   return {
     deptBF, deptCP, deptGC, DEPT_CITY,
-    cityBF, materialType, competitors, promoKnowledge,
+    cityBF, materialType, materialPhysType, competitors, promoKnowledge,
     materialState, visibilityVsBF,
     locales, localesTiendas, tiendasBancos, estadoTiendas,
     localesOT, otMaterialChart, otConMat,
-    gcCityBF, gcMaterialType, gcMaterialState, gcLocales,
+    gcCityBF, gcMaterialType, gcMaterialPhysType, gcMaterialState, gcLocales,
     gcPeriod, gcTotal, gcConMat, gcSinMatK, gcCovPct,
     glTotal, glConMat, glSinMat, glCovPct,
     period: "Mayo 2026",
@@ -1616,8 +1651,12 @@ function PageGastro({ onTabChange }) {
           </div>
         </div>
         <div className="grid-2">
-          <Card title="Interior — Tipo de material"><HBarChart data={D.materialType} color="var(--blue-mid)" /></Card>
-          <Card title="Central — Tipo de material"><HBarChart data={D.gcMaterialType} color="#16A34A" /></Card>
+          <Card title="Materiales encontrados en Interior" sub="Tipo de soporte físico (cartel, tabletent, saliente, etc.) colocado en los locales relevados">
+            <HBarChart data={D.materialPhysType} color="var(--blue-mid)" />
+          </Card>
+          <Card title="Materiales encontrados en Central" sub="Tipo de soporte físico (cartel, tabletent, saliente, etc.) colocado en los locales relevados">
+            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" />
+          </Card>
         </div>
       </>}
 
