@@ -1560,7 +1560,7 @@ function PageGastro({ onTabChange }) {
                 if(!rows.length) return React.createElement('div',{style:{color:'var(--muted)',fontSize:12,padding:'20px 0',textAlign:'center'}},'Sin datos aún');
                 return rows.map((r,i)=>{
                   const lowN = r.n < 3;
-                  return React.createElement('div',{key:i,style:{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px'},title: lowN?'Muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''},
+                  return React.createElement('div',{key:i,onClick:()=>window.__goToDetalle(r.city,'gastro_central'),style:{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px',cursor:'pointer'},title:`Ver detalle de locales en ${r.city}${lowN?' · Muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`,onMouseEnter:e=>e.currentTarget.style.borderColor='#16A34A',onMouseLeave:e=>e.currentTarget.style.borderColor='var(--border2)'},
                     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
                       React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--navy)'}},r.city),
                       React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
@@ -1571,9 +1571,10 @@ function PageGastro({ onTabChange }) {
                     React.createElement('div',{style:{fontSize:11,color: lowN?'var(--orange)':'var(--text)',marginBottom:5}},
                       `Cobertura: ${r.pct}% (${r.con} con material BF)`, lowN && ' · ⚠ muestra baja'
                     ),
-                    React.createElement('div',{style:{height:6,background:'#DCFCE7',borderRadius:3,overflow:'hidden'}},
+                    React.createElement('div',{style:{height:6,background:'#DCFCE7',borderRadius:3,overflow:'hidden',marginBottom:5}},
                       React.createElement('div',{style:{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#16A34A',borderRadius:3}})
-                    )
+                    ),
+                    React.createElement('div',{style:{fontSize:10,fontWeight:600,color:'#15803D',textAlign:'right'}},'Ver detalle de locales →')
                   );
                 });
               })()}
@@ -1593,7 +1594,7 @@ function PageGastro({ onTabChange }) {
                   .sort((a,b)=>b.n-a.n);
                 return rows.map((r,i)=>{
                   const lowN = r.n < 3;
-                  return React.createElement('div',{key:i,style:{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px'},title: lowN?'Muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''},
+                  return React.createElement('div',{key:i,onClick:()=>window.__goToDetalle(r.city,'gastro_int'),style:{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px',cursor:'pointer'},title:`Ver detalle de locales en ${r.city}${lowN?' · Muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`,onMouseEnter:e=>e.currentTarget.style.borderColor='#1D4ED8',onMouseLeave:e=>e.currentTarget.style.borderColor='var(--border2)'},
                     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}},
                       React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--navy)'}},r.city),
                       React.createElement('div',{style:{display:'flex',alignItems:'center',gap:6}},
@@ -1604,9 +1605,10 @@ function PageGastro({ onTabChange }) {
                     React.createElement('div',{style:{fontSize:11,color: lowN?'var(--orange)':'var(--text)',marginBottom:5}},
                       `Cobertura: ${r.pct}% (${r.con} con material BF)`, lowN && ' · ⚠ muestra baja'
                     ),
-                    React.createElement('div',{style:{height:6,background:'#DBEAFE',borderRadius:3,overflow:'hidden'}},
+                    React.createElement('div',{style:{height:6,background:'#DBEAFE',borderRadius:3,overflow:'hidden',marginBottom:5}},
                       React.createElement('div',{style:{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#1D4ED8',borderRadius:3}})
-                    )
+                    ),
+                    React.createElement('div',{style:{fontSize:10,fontWeight:600,color:'#1D4ED8',textAlign:'right'}},'Ver detalle de locales →')
                   );
                 });
               })()}
@@ -1816,12 +1818,12 @@ function PageTiendas() {
   );
 }
 
-function PageDetalle() {
+function PageDetalle({ initialFilter }) {
   const D = window.TableroData; if(!D) return null;
   const [open, setOpen] = useState(null);
-  const [city, setCity] = useState('');
+  const [city, setCity] = useState(initialFilter?.city || '');
   const [matFilt, setMatFilt] = useState('');
-  const [src, setSrc] = useState('gastro_int');
+  const [src, setSrc] = useState(initialFilter?.src || 'gastro_int');
 
   const SOURCES = [
     { id:'gastro_int',    label:`Gastronómico Interior (${D.locales.length})` },
@@ -2388,6 +2390,10 @@ const PAGES = { resumen: PageResumen, gastro: PageGastro, tiendas: PageTiendas, 
 function App() {
   const [page, setPage] = useState('gastro');
   const [gastroTab, setGastroTab] = useState('global');
+  const [detalleFilter, setDetalleFilter] = useState(null);
+  // Navegación global desde cualquier página hacia el Detalle por Local,
+  // ya filtrado por ciudad y por la fuente correspondiente (Central/Interior).
+  window.__goToDetalle = (city, src) => { setDetalleFilter({ city, src }); setPage('detalle'); };
   // Guard: TableroData may not be ready if called before bootstrap completes
   const D_safe = window.TableroData;
   if (!D_safe || !D_safe.period) {
@@ -2404,7 +2410,7 @@ function App() {
   const gastroPeriod = gastroTab==='central' ? 'Abril 2026' : gastroTab==='global' ? 'Abril - Mayo 2026' : 'Mayo 2026';
   const activePeriod = page==='gastro' ? gastroPeriod : 'Abril - Mayo 2026';
   const Page = PAGES[page];
-  const pageProps = page==='gastro' ? { onTabChange: setGastroTab } : {};
+  const pageProps = page==='gastro' ? { onTabChange: setGastroTab } : page==='detalle' ? { initialFilter: detalleFilter } : {};
   return (
     <div className="shell">
       <Sidebar active={page} onNav={setPage} period={activePeriod} />
