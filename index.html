@@ -1078,7 +1078,7 @@ function GroupedBarChart({ data, height = 230 }) {
   );
 }
 
-function HBarChart({ data, color = 'var(--blue)' }) {
+function HBarChart({ data, color = 'var(--blue)', total = null }) {
   const max = Math.max(...data.map(d => d.value||0), 1);
   return (
     <div className="hbar">
@@ -1088,7 +1088,9 @@ function HBarChart({ data, color = 'var(--blue)' }) {
           <div className="hbar-track">
             <div className="hbar-fill" style={{ width: ((d.value||0) / max * 100) + '%', background: d.negative ? 'var(--red)' : color }} />
           </div>
-          <span className="hbar-val" style={{ color: d.negative ? 'var(--red)' : 'var(--navy)' }}>{d.value}</span>
+          <span className="hbar-val" style={{ color: d.negative ? 'var(--red)' : 'var(--navy)' }}>
+            {total ? `${d.value} de ${total}` : d.value}
+          </span>
         </div>
       ))}
     </div>
@@ -1651,11 +1653,11 @@ function PageGastro({ onTabChange }) {
           </div>
         </div>
         <div className="grid-2">
-          <Card title="Materiales encontrados en Interior" sub="Tipo de soporte físico (cartel, tabletent, saliente, etc.) colocado en los locales relevados">
-            <HBarChart data={D.materialPhysType} color="var(--blue-mid)" />
+          <Card title="Materiales encontrados en Interior" sub={`Sobre ${D.locales.length} locales relevados en total · cada barra indica en cuántos de esos ${D.locales.length} se encontró ese material (un local puede tener más de uno)`}>
+            <HBarChart data={D.materialPhysType} color="var(--blue-mid)" total={D.locales.length} />
           </Card>
-          <Card title="Materiales encontrados en Central" sub="Tipo de soporte físico (cartel, tabletent, saliente, etc.) colocado en los locales relevados">
-            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" />
+          <Card title="Materiales encontrados en Central" sub={`Sobre ${(D.gcLocales||[]).length} locales relevados en total · cada barra indica en cuántos de esos ${(D.gcLocales||[]).length} se encontró ese material (un local puede tener más de uno)`}>
+            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" total={(D.gcLocales||[]).length} />
           </Card>
         </div>
       </>}
