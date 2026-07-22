@@ -641,23 +641,38 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
      El texto crudo puede venir como "Otro banco — Interfisa" (la encuesta ofrecía
      "Otro banco" + campo libre para especificar cuál). Se limpia el prefijo y se
      normaliza (case, puntuación final, espacios) para no duplicar la misma marca
-     bajo variantes de formato distintas. */
+     bajo variantes de formato distintas.
+     Además, algunas filas cargan varias marcas separadas por espacios múltiples
+     en vez de coma (ej. "Ueno Bank   Progresar" o "Dinelco    Cabal   Panal   Ueno pay"
+     son en realidad marcas distintas pegadas por error de carga), y otras veces se
+     escribió la descripción de la promo pegada al nombre de la entidad
+     (ej. "Progresar viernes sábado y domingo 20%"). Se recorta todo lo que venga
+     después de un día de la semana o un porcentaje, para quedarnos solo con el
+     nombre de la entidad. */
+  const KNOWN_TYPOS = { "bueno bank": "Ueno Bank", "ueno bank": "Ueno Bank" };
+  const PROMO_TAIL = /\s+(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo|\d+\s*%).*$/i;
   const cleanBrandName = raw => {
     let s = N(raw);
-    s = s.replace(/^otro\s*banco\s*[—\-:]*\s*/i, "").trim();
+    s = s.replace(PROMO_TAIL, "");             // saca descripciones de promo pegadas
     s = s.replace(/\.+$/, "").trim();          // saca puntos finales sueltos
-    s = s.replace(/\s+/g, " ");
+    s = s.replace(/\s+/g, " ").trim();
     return s;
   };
   const marcaMap = {}, marcaDisplay = {};
   rawC.forEach(r => {
     if (N(r.MARCAS_IDENTIFICADAS)) {
-      N(r.MARCAS_IDENTIFICADAS).split(",").forEach(m => {
-        const clean = cleanBrandName(m);
-        if (!clean) return;
-        const key = clean.toLowerCase();
-        marcaMap[key] = (marcaMap[key]||0) + 1;
-        if (!marcaDisplay[key]) marcaDisplay[key] = clean;
+      N(r.MARCAS_IDENTIFICADAS).split(",").forEach(piece => {
+        let s = N(piece);
+        s = s.replace(/^\s*otro\s*banco\s*[—\-:]*\s*/i, "");
+        s.split(/\s{2,}/).forEach(tok => {
+          const clean = cleanBrandName(tok);
+          if (!clean) return;
+          const lower = clean.toLowerCase();
+          const finalLabel = KNOWN_TYPOS[lower] || clean;
+          const key = finalLabel.toLowerCase();
+          marcaMap[key] = (marcaMap[key]||0) + 1;
+          if (!marcaDisplay[key]) marcaDisplay[key] = finalLabel;
+        });
       });
     }
   });
@@ -1419,7 +1434,7 @@ function HeatBlock({ mode }) {
           <ParaguayHeatMap mode={mode} data={data} deptCity={D.DEPT_CITY} height={500} />
         </div>
       </div>
-      <Card title="Ranking por Departamento">
+      <Card title="% de cobertura de BF por departamento">
         <RankList data={data} deptCity={D.DEPT_CITY} mode={mode} />
       </Card>
     </div>
@@ -1454,7 +1469,7 @@ function PageResumen() {
         <KpiCard accent="g" label="Con material BF" value={k.conBF} sub={`${k.covBF}% cobertura`} subTone="pos" />
         <KpiCard accent="r" label="Sin material BF" value={k.sinBF} sub={`${100-k.covBF}% del total`} subTone="neg" />
         <KpiCard accent="y" label="Conocen la promo" value={k.knowsWell} sub="encargados informados" subTone="mid" />
-        <KpiCard accent="b" label="Presencia competencia" value={`${k.covCP}%`} sub={`${k.conCP} locales`} subTone="neg" />
+        <KpiCard accent="b" label="% de locales con competencia" value={`${k.covCP}%`} sub={`${k.conCP} locales`} subTone="neg" />
       </div>
 
       <div className="sec-lbl">Distribución geográfica</div>
@@ -1471,8 +1486,8 @@ function PageResumen() {
         </Card>
       </div>
       <div className="grid-2">
-        <Card title="Conocimiento de la promoción"><Donut data={D.promoKnowledge} /></Card>
-        <Card title="Estado del material"><Donut data={D.materialState} /></Card>
+        <Card title="% de encargados según cuánto conocen la promo"><Donut data={D.promoKnowledge} /></Card>
+        <Card title="% de locales según el estado del material BF colocado"><Donut data={D.materialState} /></Card>
       </div>
     </>
   );
@@ -1534,7 +1549,7 @@ function PageGastro({ onTabChange }) {
           {/* RANKING CENTRAL */}
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DCFCE7',borderBottom:'1px solid #86EFAC',flexDirection:'column',alignItems:'flex-start',gap:3}}>
-              <span style={{color:'#15803D',fontWeight:700}}> Top 10 — Central</span>
+              <span style={{color:'#15803D',fontWeight:700}}> % de cobertura de BF por ciudad — Top 10 Central</span>
               <span style={{fontSize:10,fontWeight:400,color:'#15803D',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>% de cobertura de material BF por ciudad · ciudades con pocos locales relevados pueden mostrar 100%/0% sin ser representativas</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
@@ -1569,7 +1584,7 @@ function PageGastro({ onTabChange }) {
           {/* RANKING INTERIOR */}
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DBEAFE',borderBottom:'1px solid #93C5FD',flexDirection:'column',alignItems:'flex-start',gap:3}}>
-              <span style={{color:'#1D4ED8',fontWeight:700}}> Top 10 — Interior</span>
+              <span style={{color:'#1D4ED8',fontWeight:700}}> % de cobertura de BF por ciudad — Top 10 Interior</span>
               <span style={{fontSize:10,fontWeight:400,color:'#1D4ED8',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>% de cobertura de material BF por ciudad · ciudades con pocos locales relevados pueden mostrar 100%/0% sin ser representativas</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
@@ -1615,7 +1630,7 @@ function PageGastro({ onTabChange }) {
         </div>
         <div className="grid-2">
           <Card title="Tipo de material / oferta"><HBarChart data={D.gcMaterialType} color="#16A34A" /></Card>
-          <Card title="Estado del material"><Donut data={D.gcMaterialState.length ? D.gcMaterialState : [{label:'Sin datos',value:1,color:'#CBD5E1'}]} /></Card>
+          <Card title="% de locales según el estado del material BF colocado"><Donut data={D.gcMaterialState.length ? D.gcMaterialState : [{label:'Sin datos',value:1,color:'#CBD5E1'}]} /></Card>
         </div>
       </>}
 
@@ -1626,7 +1641,7 @@ function PageGastro({ onTabChange }) {
           <KpiCard accent="g" label="Con material BF"    value={k.conBF}   sub={`${k.covBF}% cobertura`} subTone="pos" />
           <KpiCard accent="r" label="Sin material BF"    value={k.sinBF}   sub={`${100-k.covBF}% del total`} subTone="neg" />
           <KpiCard accent="y" label="Conocen la promo"   value={k.knowsWell} sub="encargados informados" subTone="mid" />
-          <KpiCard accent="b" label="Material en perfecto estado" value={k.perfect} sub={k.conBF>0?`${Math.round(k.perfect/k.conBF*100)}% de los colocados`:''} subTone="pos" />
+          <KpiCard accent="b" label="% de material colocado en perfecto estado" value={k.perfect} sub={k.conBF>0?`${Math.round(k.perfect/k.conBF*100)}% de los colocados`:''} subTone="pos" />
         </div>
         <HeatBlock mode="bf" />
         <div className="grid-2">
@@ -1637,8 +1652,8 @@ function PageGastro({ onTabChange }) {
           <Card title="Tipo de material"><HBarChart data={D.materialType} color="var(--blue-mid)" /></Card>
         </div>
         <div className="grid-2">
-          <Card title="Conocimiento de la promoción"><Donut data={D.promoKnowledge} /></Card>
-          <Card title="Estado del material"><Donut data={D.materialState} /></Card>
+          <Card title="% de encargados según cuánto conocen la promo"><Donut data={D.promoKnowledge} /></Card>
+          <Card title="% de locales según el estado del material BF colocado"><Donut data={D.materialState} /></Card>
         </div>
       </>}
 
@@ -1655,7 +1670,7 @@ function PageGastro({ onTabChange }) {
           <Card title="Marcas competidoras detectadas" sub="Cantidad de locales donde se identificó material de cada marca/banco competidor (un local puede tener más de una marca presente)">
             <HBarChart data={D.competitors} color="var(--red)" />
           </Card>
-          <Card title="Visibilidad vs Banco Familiar" sub="Compara, local por local, qué tan visible está el material de la competencia frente al de BF · pasá el mouse para ver % y comentarios">
+          <Card title="% de locales según visibilidad de la competencia frente a BF" sub="Pasá el mouse sobre el gráfico para ver el % y comentarios reales del relevamiento">
             <Donut data={D.visibilityVsBF} />
           </Card>
         </div>
@@ -1737,7 +1752,7 @@ function PageTiendas() {
           <Card title="Bancos competidores en Promo Día de las Madres">
             <HBarChart data={D.tiendasBancos} color="var(--red)" />
           </Card>
-          <Card title="Cobertura competencia vs BF">
+          <Card title="% de tiendas con competencia vs. con material BF">
             <Donut data={[
               {label:'Con competencia', value:k.tConComp,        color:'#DC2626'},
               {label:'Sin competencia', value:tTotal-k.tConComp, color:'#DBEAFE'},
