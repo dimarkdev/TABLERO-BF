@@ -1550,7 +1550,7 @@ function PageGastro({ onTabChange }) {
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DCFCE7',borderBottom:'1px solid #86EFAC',flexDirection:'column',alignItems:'flex-start',gap:3}}>
               <span style={{color:'#15803D',fontWeight:700}}> Cobertura de Material BF — Top 10 Ciudades (Central)</span>
-              <span style={{fontSize:10,fontWeight:400,color:'#15803D',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>Proporción de locales con material BF sobre el total relevado por ciudad · considerá el volumen de muestra (n) al comparar entre ciudades</span>
+              <span style={{fontSize:10,fontWeight:400,color:'#15803D',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>Proporción de locales con material BF sobre el total relevado por ciudad · considerá el volumen de muestra al comparar entre ciudades</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
               {(()=>{
@@ -1560,18 +1560,20 @@ function PageGastro({ onTabChange }) {
                 if(!rows.length) return React.createElement('div',{style:{color:'var(--muted)',fontSize:12,padding:'20px 0',textAlign:'center'}},'Sin datos aún');
                 return rows.map((r,i)=>{
                   const n = r.con+r.sin, lowN = n < 3;
-                  return React.createElement('div',{key:i,style:{padding:'8px 0',borderBottom:'1px solid var(--border2)'},title:`${r.city}: ${r.pct}% (n=${n}) · ${r.con} de ${n} locales relevados tenían material BF${lowN?' · muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`},
+                  return React.createElement('div',{key:i,style:{padding:'8px 0',borderBottom:'1px solid var(--border2)'},title:`${r.city}: ${r.pct}% · ${r.con} de ${n} locales relevados tenían material BF${lowN?' · muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`},
                     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:3}},
                       React.createElement('span',null,
                         React.createElement('span',{style:{fontSize:10,fontWeight:800,color:'var(--muted)',marginRight:5}},`${i+1}`),
                         React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--navy)'}},r.city)
                       ),
-                      React.createElement('span',{style:{fontSize:13,fontWeight:800,color: lowN?'var(--orange)':'#15803D'}},`${r.pct}% `,React.createElement('span',{style:{fontSize:10,fontWeight:700,opacity:.75}},`(n=${n})`))
+                      React.createElement('span',{style:{fontSize:13,fontWeight:800,color: lowN?'var(--orange)':'#15803D'}},`${r.pct}%`)
                     ),
                     React.createElement('div',{style:{height:5,background:'#DCFCE7',borderRadius:3,overflow:'hidden'}},
                       React.createElement('div',{style:{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#16A34A',borderRadius:3}})
                     ),
-                    lowN && React.createElement('div',{style:{fontSize:10,color:'var(--orange)',fontWeight:600,marginTop:2}},'⚠ muestra baja')
+                    React.createElement('div',{style:{fontSize:10,color: lowN?'var(--orange)':'var(--muted)',fontWeight: lowN?600:400,marginTop:2}},
+                      `${r.con} de ${n} locales`, lowN && ' · ⚠ muestra baja'
+                    )
                   );
                 });
               })()}
@@ -1582,7 +1584,7 @@ function PageGastro({ onTabChange }) {
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DBEAFE',borderBottom:'1px solid #93C5FD',flexDirection:'column',alignItems:'flex-start',gap:3}}>
               <span style={{color:'#1D4ED8',fontWeight:700}}> Cobertura de Material BF — Top 10 Ciudades (Interior)</span>
-              <span style={{fontSize:10,fontWeight:400,color:'#1D4ED8',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>Proporción de locales con material BF sobre el total relevado por ciudad · considerá el volumen de muestra (n) al comparar entre ciudades</span>
+              <span style={{fontSize:10,fontWeight:400,color:'#1D4ED8',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>Proporción de locales con material BF sobre el total relevado por ciudad · considerá el volumen de muestra al comparar entre ciudades</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
               {(()=>{
@@ -1591,18 +1593,20 @@ function PageGastro({ onTabChange }) {
                   .sort((a,b)=>b.pct-a.pct).slice(0,10);
                 return rows.map((r,i)=>{
                   const lowN = r.total < 3;
-                  return React.createElement('div',{key:i,style:{padding:'8px 0',borderBottom:'1px solid var(--border2)'},title:`${r.city}: ${r.pct}% (n=${r.total}) · ${r.con} de ${r.total} locales relevados tenían material BF${lowN?' · muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`},
+                  return React.createElement('div',{key:i,style:{padding:'8px 0',borderBottom:'1px solid var(--border2)'},title:`${r.city}: ${r.pct}% · ${r.con} de ${r.total} locales relevados tenían material BF${lowN?' · muestra baja: no comparar 1 a 1 con ciudades de mayor volumen':''}`},
                     React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:3}},
                       React.createElement('span',null,
                         React.createElement('span',{style:{fontSize:10,fontWeight:800,color:'var(--muted)',marginRight:5}},`${i+1}`),
                         React.createElement('span',{style:{fontSize:12,fontWeight:700,color:'var(--navy)'}},r.city)
                       ),
-                      React.createElement('span',{style:{fontSize:13,fontWeight:800,color: lowN?'var(--orange)':'#1D4ED8'}},`${r.pct}% `,React.createElement('span',{style:{fontSize:10,fontWeight:700,opacity:.75}},`(n=${r.total})`))
+                      React.createElement('span',{style:{fontSize:13,fontWeight:800,color: lowN?'var(--orange)':'#1D4ED8'}},`${r.pct}%`)
                     ),
                     React.createElement('div',{style:{height:5,background:'#DBEAFE',borderRadius:3,overflow:'hidden'}},
                       React.createElement('div',{style:{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#1D4ED8',borderRadius:3}})
                     ),
-                    lowN && React.createElement('div',{style:{fontSize:10,color:'var(--orange)',fontWeight:600,marginTop:2}},'⚠ muestra baja')
+                    React.createElement('div',{style:{fontSize:10,color: lowN?'var(--orange)':'var(--muted)',fontWeight: lowN?600:400,marginTop:2}},
+                      `${r.con} de ${r.total} locales`, lowN && ' · ⚠ muestra baja'
+                    )
                   );
                 });
               })()}
