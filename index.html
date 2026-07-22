@@ -1434,7 +1434,7 @@ function HeatBlock({ mode }) {
           <ParaguayHeatMap mode={mode} data={data} deptCity={D.DEPT_CITY} height={500} />
         </div>
       </div>
-      <Card title="% de cobertura de BF por departamento">
+      <Card title="% de locales relevados donde se detectó material BF (por departamento)">
         <RankList data={data} deptCity={D.DEPT_CITY} mode={mode} />
       </Card>
     </div>
@@ -1469,7 +1469,7 @@ function PageResumen() {
         <KpiCard accent="g" label="Con material BF" value={k.conBF} sub={`${k.covBF}% cobertura`} subTone="pos" />
         <KpiCard accent="r" label="Sin material BF" value={k.sinBF} sub={`${100-k.covBF}% del total`} subTone="neg" />
         <KpiCard accent="y" label="Conocen la promo" value={k.knowsWell} sub="encargados informados" subTone="mid" />
-        <KpiCard accent="b" label="% de locales con competencia" value={`${k.covCP}%`} sub={`${k.conCP} locales`} subTone="neg" />
+        <KpiCard accent="b" label="% de locales relevados con material de la competencia" value={`${k.covCP}%`} sub={`${k.conCP} locales`} subTone="neg" />
       </div>
 
       <div className="sec-lbl">Distribución geográfica</div>
@@ -1549,8 +1549,8 @@ function PageGastro({ onTabChange }) {
           {/* RANKING CENTRAL */}
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DCFCE7',borderBottom:'1px solid #86EFAC',flexDirection:'column',alignItems:'flex-start',gap:3}}>
-              <span style={{color:'#15803D',fontWeight:700}}> % de cobertura de BF por ciudad — Top 10 Central</span>
-              <span style={{fontSize:10,fontWeight:400,color:'#15803D',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>% de cobertura de material BF por ciudad · ciudades con pocos locales relevados pueden mostrar 100%/0% sin ser representativas</span>
+              <span style={{color:'#15803D',fontWeight:700}}> Porcentaje de locales relevados donde se detectó material BF — Top 10 Central</span>
+              <span style={{fontSize:10,fontWeight:400,color:'#15803D',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>De los locales relevados en cada ciudad, en cuántos se detectó material BF · ciudades con pocos locales relevados no son comparables 1 a 1 con las de mayor volumen</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
               {(()=>{
@@ -1584,8 +1584,8 @@ function PageGastro({ onTabChange }) {
           {/* RANKING INTERIOR */}
           <div className="card" style={{overflow:'hidden'}}>
             <div className="card-h" style={{background:'#DBEAFE',borderBottom:'1px solid #93C5FD',flexDirection:'column',alignItems:'flex-start',gap:3}}>
-              <span style={{color:'#1D4ED8',fontWeight:700}}> % de cobertura de BF por ciudad — Top 10 Interior</span>
-              <span style={{fontSize:10,fontWeight:400,color:'#1D4ED8',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>% de cobertura de material BF por ciudad · ciudades con pocos locales relevados pueden mostrar 100%/0% sin ser representativas</span>
+              <span style={{color:'#1D4ED8',fontWeight:700}}> Porcentaje de locales relevados donde se detectó material BF — Top 10 Interior</span>
+              <span style={{fontSize:10,fontWeight:400,color:'#1D4ED8',opacity:.75,textTransform:'none',letterSpacing:'normal'}}>De los locales relevados en cada ciudad, en cuántos se detectó material BF · ciudades con pocos locales relevados no son comparables 1 a 1 con las de mayor volumen</span>
             </div>
             <div className="card-b" style={{padding:'8px 12px',maxHeight:460,overflowY:'auto'}}>
               {(()=>{
@@ -1641,7 +1641,7 @@ function PageGastro({ onTabChange }) {
           <KpiCard accent="g" label="Con material BF"    value={k.conBF}   sub={`${k.covBF}% cobertura`} subTone="pos" />
           <KpiCard accent="r" label="Sin material BF"    value={k.sinBF}   sub={`${100-k.covBF}% del total`} subTone="neg" />
           <KpiCard accent="y" label="Conocen la promo"   value={k.knowsWell} sub="encargados informados" subTone="mid" />
-          <KpiCard accent="b" label="% de material colocado en perfecto estado" value={k.perfect} sub={k.conBF>0?`${Math.round(k.perfect/k.conBF*100)}% de los colocados`:''} subTone="pos" />
+          <KpiCard accent="b" label="% de locales relevados con material BF en perfecto estado" value={k.perfect} sub={k.conBF>0?`${Math.round(k.perfect/k.conBF*100)}% de los colocados`:''} subTone="pos" />
         </div>
         <HeatBlock mode="bf" />
         <div className="grid-2">
@@ -1752,7 +1752,7 @@ function PageTiendas() {
           <Card title="Bancos competidores en Promo Día de las Madres">
             <HBarChart data={D.tiendasBancos} color="var(--red)" />
           </Card>
-          <Card title="% de tiendas con competencia vs. con material BF">
+          <Card title="% de tiendas relevadas donde se detectó material BF vs. de la competencia">
             <Donut data={[
               {label:'Con competencia', value:k.tConComp,        color:'#DC2626'},
               {label:'Sin competencia', value:tTotal-k.tConComp, color:'#DBEAFE'},
