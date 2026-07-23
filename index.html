@@ -747,13 +747,26 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
   const estadoTiendas = Object.entries(estadoMap).sort((a,b)=>b[1]-a[1])
     .map(([label,value]) => ({ label, value }));
 
-  const bancoMap = {};
+  const bancoMap = {}, bancoDisplay = {};
   rawT.forEach(r => {
     const v = N(r[T_COMP]);
-    if (v && v!=="No" && v!=="") v.split(",").forEach(b=>{ const bk=b.trim(); if(bk) bancoMap[bk]=(bancoMap[bk]||0)+1; });
+    if (!v || v==="No") return;
+    v.split(",").forEach(piece => {
+      let s = N(piece);
+      s = s.replace(/^\s*otro\s*banco\s*[—\-:]*\s*/i, "");
+      s.split(/\s{2,}/).forEach(tok => {
+        const clean = cleanBrandName(tok);
+        if (!clean) return; // "Otro banco" sin especificar: se descarta del gráfico en vez de mostrarse como bucket genérico
+        const lower = clean.toLowerCase();
+        const finalLabel = KNOWN_TYPOS[lower] || clean;
+        const key = finalLabel.toLowerCase();
+        bancoMap[key] = (bancoMap[key]||0) + 1;
+        if (!bancoDisplay[key]) bancoDisplay[key] = finalLabel;
+      });
+    });
   });
   const tiendasBancos = Object.entries(bancoMap).sort((a,b)=>b[1]-a[1]).slice(0,6)
-    .map(([label,value]) => ({ label, value }));
+    .map(([key,value]) => ({ label: bancoDisplay[key], value }));
 
   const localesTiendas = rawT.map(r => ({
     name: N(r[T_LOCAL]),
@@ -1182,26 +1195,32 @@ function GroupedHBarChart({ data, maxHeight = 420, onCityClick = null }) {
 
 function HBarChart({ data, color = 'var(--blue)', total = null, onBarClick = null }) {
   const max = Math.max(...data.map(d => d.value||0), 1);
+  const sum = data.reduce((s,d)=>s+(d.value||0),0) || 1;
+  const base = total || sum;
   return (
     <div className="hbar">
-      {data.map((d, i) => (
-        <div className="hbar-row" key={i} onClick={onBarClick ? () => onBarClick(d) : undefined}
-          style={onBarClick ? {cursor:'pointer'} : null}
-          title={onBarClick ? `Ver los locales con "${d.label}" →` : undefined}>
-          <span className="hbar-lbl">{d.label}</span>
-          <div className="hbar-track">
-            <div className="hbar-fill" style={{ width: ((d.value||0) / max * 100) + '%', background: d.negative ? 'var(--red)' : color }} />
+      {data.map((d, i) => {
+        const pct = Math.round((d.value||0) / base * 100);
+        const tip = `${d.label}: ${d.value}${total?` de ${total}`:''} (${pct}%)` + (onBarClick ? `\n\nTocá para ver estos locales →` : '');
+        return (
+          <div className="hbar-row" key={i} onClick={onBarClick ? () => onBarClick(d) : undefined}
+            style={onBarClick ? {cursor:'pointer'} : null}
+            title={tip}>
+            <span className="hbar-lbl">{d.label}</span>
+            <div className="hbar-track">
+              <div className="hbar-fill" style={{ width: ((d.value||0) / max * 100) + '%', background: d.negative ? 'var(--red)' : color }} />
+            </div>
+            <span className="hbar-val" style={{ color: d.negative ? 'var(--red)' : 'var(--navy)' }}>
+              {total ? `${d.value} de ${total}` : d.value}
+            </span>
           </div>
-          <span className="hbar-val" style={{ color: d.negative ? 'var(--red)' : 'var(--navy)' }}>
-            {total ? `${d.value} de ${total}` : d.value}
-          </span>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
 
-function Donut({ data, size = 132, thickness = 16 }) {
+function Donut({ data, size = 132, thickness = 16, onSliceClick = null }) {
   const total = data.reduce((s, x) => s + (x.value||0), 0) || 1;
   const r = (size - thickness) / 2, cx = size / 2, cy = size / 2, circ = 2 * Math.PI * r;
   let off = 0;
@@ -1209,6 +1228,7 @@ function Donut({ data, size = 132, thickness = 16 }) {
     const pct = Math.round((s.value||0) / total * 100);
     let t = `${s.label}: ${s.value} de ${total} (${pct}%)`;
     if (s.comments && s.comments.length) t += `\n\nComentarios del relevamiento:\n` + s.comments.map(c=>`• ${c}`).join("\n");
+    if (onSliceClick) t += `\n\nTocá para ver estos locales →`;
     return t;
   };
   return (
@@ -1220,7 +1240,9 @@ function Donut({ data, size = 132, thickness = 16 }) {
           const el = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={s.color} strokeWidth={thickness}
             strokeDasharray={`${dash.toFixed(2)} ${(circ - dash).toFixed(2)}`}
             strokeDashoffset={(-off * circ).toFixed(2)}
-            transform={`rotate(-90 ${cx} ${cy})`} opacity="0.92" style={{cursor:s.comments?'help':'default'}}>
+            transform={`rotate(-90 ${cx} ${cy})`} opacity="0.92"
+            onClick={onSliceClick ? () => onSliceClick(s) : undefined}
+            style={{cursor: onSliceClick ? 'pointer' : (s.comments?'help':'default')}}>
             <title>{tipFor(s)}</title>
           </circle>;
           off += frac; return el;
@@ -1229,7 +1251,9 @@ function Donut({ data, size = 132, thickness = 16 }) {
       </svg>
       <div className="donut-legend">
         {data.map((s, i) => (
-          <div className="dl-row" key={i} title={tipFor(s)} style={{cursor:s.comments&&s.comments.length?'help':'default'}}>
+          <div className="dl-row" key={i} title={tipFor(s)}
+            onClick={onSliceClick ? () => onSliceClick(s) : undefined}
+            style={{cursor: onSliceClick ? 'pointer' : (s.comments&&s.comments.length?'help':'default')}}>
             <span className="dl-dot" style={{ background: s.color }} />
             <span className="dl-label">{s.label}</span>
             <span className="dl-val">{s.value}</span>
@@ -1816,7 +1840,7 @@ function PageGastro({ onTabChange }) {
                 <>
                   {best && (
                     <div style={{marginBottom:10,padding:'8px 12px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,fontSize:12,color:'#15803D',fontWeight:600}}>
-                      🏆 {best.city} es la ciudad con más material BF colocado en Central, considerando el volumen relevado: {best.con} de {best.con+best.sin} locales.
+                      {best.city} es la ciudad con más material BF colocado en Central, considerando el volumen relevado: {best.con} de {best.con+best.sin} locales.
                     </div>
                   )}
                   <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
@@ -1901,10 +1925,10 @@ function PageTiendas() {
   const k = D.kpi;
   const tConMat = k.tConMat, tTotal = k.tTotal;
   const tiendasEstadoDonut = [
-    { label:'Visible desde afuera', value: D.estadoTiendas.find(e=>e.label.includes('visible desde'))?.value||0, color:'#1D4ED8' },
-    { label:'No visible',           value: (D.estadoTiendas.find(e=>e.label.includes('no visible'))?.value||0)+(D.estadoTiendas.find(e=>e.label.includes('mal ubic'))?.value||0), color:'#F59E0B' },
-    { label:'Sin colocar',          value: D.estadoTiendas.find(e=>e.label.includes('colocado'))?.value||0, color:'#EF4444' },
-    { label:'No aplica',            value: D.estadoTiendas.find(e=>e.label.includes('aplica'))?.value||0, color:'#94A3B8' },
+    { label:'Visible desde afuera', value: D.estadoTiendas.find(e=>e.label.includes('visible desde'))?.value||0, color:'#1D4ED8', matchValue:'visible desde' },
+    { label:'No visible',           value: (D.estadoTiendas.find(e=>e.label.includes('no visible'))?.value||0)+(D.estadoTiendas.find(e=>e.label.includes('mal ubic'))?.value||0), color:'#F59E0B', matchValue:'no visible' },
+    { label:'Sin colocar',          value: D.estadoTiendas.find(e=>e.label.includes('colocado'))?.value||0, color:'#EF4444', matchValue:'colocado' },
+    { label:'No aplica',            value: D.estadoTiendas.find(e=>e.label.includes('aplica'))?.value||0, color:'#94A3B8', matchValue:'aplica' },
   ].filter(e=>e.value>0);
 
   const ot = D.localesOT || [];
@@ -1940,20 +1964,25 @@ function PageTiendas() {
           <KpiCard accent="r" label="Con competencia"         value={k.tConComp}  sub={`${Math.round(k.tConComp/tTotal*100)}%`} subTone="neg" />
         </div>
         <div className="grid-2">
-          <Card title="Estado del material en tiendas">
-            <HBarChart data={D.estadoTiendas} color="var(--blue-mid)" />
+          <Card title="Estado del material en tiendas" sub="Tocá una barra para ver esas tiendas">
+            <HBarChart data={D.estadoTiendas} color="var(--blue-mid)"
+              onBarClick={d => window.__goToDetalle('', 'tiendas', null, '', null, {field:'state', value:d.label})} />
           </Card>
-          <Card title="Bancos competidores en tiendas">
-            <HBarChart data={D.tiendasBancos} color="var(--red)" />
+          <Card title="Bancos competidores en tiendas" sub="Cantidad de tiendas donde se identificó cada marca competidora · tocá una barra para ver esas tiendas">
+            <HBarChart data={D.tiendasBancos} color="var(--red)"
+              onBarClick={d => window.__goToDetalle('', 'tiendas_compe', null, '', null, {field:'benefit', value:d.label})} />
           </Card>
         </div>
         <div className="grid-2">
-          <Card title="Visibilidad del material"><Donut data={tiendasEstadoDonut} /></Card>
-          <Card title="Conocimiento de la promo">
+          <Card title="Visibilidad del material" sub="Pasá el mouse para ver el % · tocá un segmento para ver esas tiendas">
+            <Donut data={tiendasEstadoDonut}
+              onSliceClick={s => window.__goToDetalle('', 'tiendas', null, '', null, {field:'state', value:s.matchValue||s.label})} />
+          </Card>
+          <Card title="Conocimiento de la promo" sub="Pasá el mouse para ver el % · tocá un segmento para ver esas tiendas">
             <Donut data={[
-              {label:'Sí conoce', value:k.tConoce,        color:'#1D4ED8'},
-              {label:'No / N-D',  value:tTotal-k.tConoce, color:'#94A3B8'},
-            ]} />
+              {label:'Sí conoce', value:k.tConoce,        color:'#1D4ED8', matchValue:'conoce bien'},
+              {label:'No conoce / sin dato registrado',  value:tTotal-k.tConoce, color:'#94A3B8', matchValue:'no conoce'},
+            ]} onSliceClick={s => window.__goToDetalle('', 'tiendas', null, '', null, {field:'knows', value:s.matchValue})} />
           </Card>
         </div>
       </>}
@@ -1965,14 +1994,17 @@ function PageTiendas() {
           <KpiCard accent="y" label="Marcas detectadas"  value={D.tiendasBancos.length} sub="entidades activas" subTone="mid" />
         </div>
         <div className="grid-2">
-          <Card title="Bancos competidores en Promo Día de las Madres">
-            <HBarChart data={D.tiendasBancos} color="var(--red)" />
+          <Card title="Bancos competidores en Promo Día de las Madres" sub="Cantidad de tiendas donde se identificó cada marca competidora · tocá una barra para ver esas tiendas">
+            <HBarChart data={D.tiendasBancos} color="var(--red)"
+              onBarClick={d => window.__goToDetalle('', 'tiendas_compe', null, '', null, {field:'benefit', value:d.label})} />
           </Card>
-          <Card title="% de tiendas relevadas donde se detectó material BF vs. de la competencia">
+          <Card title="% de tiendas relevadas donde se detectó material BF vs. de la competencia" sub="Pasá el mouse para ver el % · tocá un segmento para ver esas tiendas">
             <Donut data={[
               {label:'Con competencia', value:k.tConComp,        color:'#DC2626'},
               {label:'Sin competencia', value:tTotal-k.tConComp, color:'#DBEAFE'},
-            ]} />
+            ]} onSliceClick={s => s.label==='Con competencia'
+                ? window.__goToDetalle('', 'tiendas_compe', null, '', null, null)
+                : window.__goToDetalle('', 'tiendas', null, '', null, {field:'__nocomp', value:''})} />
           </Card>
         </div>
       </>}
@@ -2042,6 +2074,7 @@ function PageDetalle({ initialFilter }) {
   const [matFilt, setMatFilt] = useState(initialFilter?.matFilt || '');
   const [physFilt, setPhysFilt] = useState(initialFilter?.physType || '');
   const [src, setSrc] = useState(initialFilter?.src || 'gastro_int');
+  const extraFilt = initialFilter?.extra || null;
 
   const SOURCES = [
     { id:'gastro_int',    label:`Gastronómico Interior (${D.locales.length})` },
@@ -2058,6 +2091,7 @@ function PageDetalle({ initialFilter }) {
                        name: l.name, city: l.city,
                        material: true,
                        state: '—',
+                       knows: l.knows,
                        benefit: l.comp,
                        obs: l.obs,
                        fotos: l.fotos_comp||[],
@@ -2079,7 +2113,10 @@ function PageDetalle({ initialFilter }) {
     (!city || l.city===city) &&
     (!dept || (CITY_DEPT[l.city]||CITY_DEPT[(l.city||'').toLowerCase()])===dept) &&
     (!matFilt || (matFilt==='si' ? l.material : !l.material)) &&
-    (!physFilt || (l.physTypes||[]).includes(physFilt))
+    (!physFilt || (l.physTypes||[]).includes(physFilt)) &&
+    (!extraFilt || (extraFilt.field==='__nocomp'
+        ? !(l.comp && l.comp!=='—' && l.comp!=='No')
+        : (l[extraFilt.field]||'').toString().toLowerCase().includes(extraFilt.value.toLowerCase())))
   );
 
   const tone = s => {
@@ -2136,6 +2173,12 @@ function PageDetalle({ initialFilter }) {
             {physTypesList.map(p=><option key={p} value={p}>{p}</option>)}
           </select>
         </>}
+        {extraFilt && (
+          <span style={{display:'inline-flex',alignItems:'center',gap:6,background:'var(--bsoft)',border:'1px solid var(--border)',borderRadius:20,padding:'4px 10px',fontSize:11,color:'var(--navy)',fontWeight:600}}>
+            Filtro: {extraFilt.field==='__nocomp' ? 'sin competencia' : extraFilt.value}
+            <span onClick={()=>window.__goToDetalle(city,src,physFilt||null,matFilt,dept,null)} style={{cursor:'pointer',color:'var(--muted)',fontWeight:800}}>✕</span>
+          </span>
+        )}
         <span className="rc">{rows.length} locales</span>
       </div>
       <div className="lg">
@@ -2344,13 +2387,20 @@ function PageConclusiones() {
     const covPct = D.gcCovPct || 0;
     if (total === 0) return <div className="nodata">Sin datos cargados en RE_BF_GASTRO_CENTRAL aún.</div>;
     const topCities = (D.gcCityBF||[]).map(r=>({...r,pct:r.con+r.sin>0?Math.round(r.con/(r.con+r.sin)*100):0})).sort((a,b)=>b.pct-a.pct);
-    const topCity   = topCities[0];
-    /* Umbral mínimo de muestra para que una ciudad se use en el análisis de
-       "menor cobertura": evita que una ciudad con 1 solo local (0% o 100%)
-       se lea con el mismo peso que una con decenas de locales. */
+    /* Umbral mínimo de muestra para que una ciudad entre al análisis comparativo:
+       evita que una ciudad con 1-2 locales (0% o 100% automático) se lea con el
+       mismo peso que una con decenas de locales relevados. */
     const MIN_SAMPLE = 3;
     const sigCities  = topCities.filter(c => (c.con+c.sin) >= MIN_SAMPLE);
-    const lowCity    = sigCities.length ? sigCities[sigCities.length-1] : null;
+    /* Ciudad de referencia: la de MAYOR VOLUMEN relevado (no la de mayor %),
+       para que la lectura se ancle en la ciudad que realmente pesa (ej. Asunción),
+       no en una con 1-2 locales que da 100%/0% por azar. */
+    const byVolume  = [...sigCities].sort((a,b)=>(b.con+b.sin)-(a.con+a.sin));
+    const topVolumeCity = byVolume[0] || null;
+    /* Solo se llama "destacado" a partir de 80% de cobertura — 70-79% es "bueno"
+       pero todavía no alcanza ese nivel, sobre todo cuando pesa mucho volumen. */
+    const DESTACADO = 80;
+    const lowCity    = sigCities.length ? [...sigCities].sort((a,b)=>a.pct-b.pct)[0] : null;
     const lowCityAny = topCities.length ? [...topCities].reverse()[0] : null;
     const lowSample  = lowCityAny && (c => (c.con+c.sin) < MIN_SAMPLE)(lowCityAny) && (!lowCity || lowCityAny.city !== lowCity.city) ? lowCityAny : null;
     /* Peso de Central dentro del universo total relevado (Central + Interior),
@@ -2359,6 +2409,9 @@ function PageConclusiones() {
     const combinedTotal  = total + interiorTotal;
     const centralSharePct = combinedTotal>0 ? Math.round(total/combinedTotal*100) : 0;
     const sinMatLocales = (D.gcLocales||[]).filter(l=>!l.material);
+    /* Top 3 ciudades por volumen (con muestra suficiente), para recomendaciones
+       ancladas en dónde realmente hay más tiendas relevadas. */
+    const top3ByVolume = byVolume.slice(0,3);
     return (
       <div style={col(14)}>
         {/* Banner */}
@@ -2368,9 +2421,10 @@ function PageConclusiones() {
             <div className="exec-head">Cobertura BF: <b style={{color:'var(--yellow)'}}>{covPct}%</b> en {total} locales relevados</div>
             <div className="exec-sub" style={{marginTop:6}}>
               Se relevaron <b>{total} locales gastronómicos</b> en el área Central (Asunción y alrededores).
-              {covPct >= 70
-                ? ` Con una cobertura del ${covPct}%, el desempeño es destacado y evidencia una distribución efectiva del material BF en la zona.`
-                : ` Con una cobertura del ${covPct}%, existe margen de mejora considerable. ${sinMat} locales aún no cuentan con material BF activo.`}
+              {topVolumeCity && ` ${topVolumeCity.city} concentra el mayor volumen relevado (${topVolumeCity.con+topVolumeCity.sin} de ${total} locales), con ${topVolumeCity.pct}% de cobertura — ${topVolumeCity.pct>=DESTACADO?'un resultado destacado.':'un resultado bueno, aunque todavía no destacado: para calificarlo de destacado sobre ese volumen haría falta superar el 80%.'}`}
+              {covPct >= DESTACADO
+                ? ` A nivel general, la cobertura del ${covPct}% ya supera ese umbral y evidencia una distribución sólida en la zona.`
+                : ` A nivel general, la cobertura del ${covPct}% todavía no llega al 80% que marcaría un desempeño destacado; ${sinMat} locales aún no cuentan con material BF activo.`}
             </div>
           </div>
           <div className="exec-r">
@@ -2386,7 +2440,7 @@ function PageConclusiones() {
             <div style={cardBd}>
               <StatRow label="Con material BF"    value={conMat} pct={covPct}          color="var(--blue-700)"  total={total}/>
               <StatRow label="Sin material BF"    value={sinMat} pct={100-covPct}       color="var(--red)"       total={total}/>
-              {topCity && <StatRow label={`Mejor ciudad: ${topCity.city}`} value={topCity.con} pct={topCity.pct} color="#15803D" total={topCity.con+topCity.sin}/>}
+              {topVolumeCity && <StatRow label={`Mayor volumen: ${topVolumeCity.city}`} value={topVolumeCity.con} pct={topVolumeCity.pct} color={topVolumeCity.pct>=DESTACADO?"#15803D":"var(--blue-mid)"} total={topVolumeCity.con+topVolumeCity.sin}/>}
               {lowCity && lowCity.pct < 80 && <StatRow label={`Oportunidad: ${lowCity.city}`} value={lowCity.con} pct={lowCity.pct} color="var(--orange)" total={lowCity.con+lowCity.sin}/>}
             </div>
           </div>
@@ -2474,8 +2528,8 @@ function PageConclusiones() {
         <div style={card}>
           <div style={cardHd('blue')}> Hallazgos clave</div>
           <div style={cardBd}>
-            <FindingRow icon="" text={`El área Central concentra ${total} de los ${combinedTotal} locales relevados a nivel país (Central + Interior), es decir el ${centralSharePct}% del universo total. Con ${covPct}% de cobertura (${conMat}/${total} locales), cada punto porcentual que se gane en Central mueve el resultado global más que uno equivalente en el interior, justamente por ese mayor peso relativo. ${covPct>=70?'El nivel actual ya es sólido; el foco pasa a sostenerlo y cerrar los locales puntuales que faltan.':'Por eso reforzar Central primero — antes que expandir en el interior — es donde más rinde la próxima ronda de distribución.'}`}/>
-            {topCity && <FindingRow icon="" text={`${topCity.city} lidera con ${topCity.pct}% de cobertura (${topCity.con} de ${topCity.con+topCity.sin} locales)${(topCity.con+topCity.sin)<MIN_SAMPLE?', aunque con una muestra chica (menos de 3 locales relevados), por lo que conviene tomarlo como referencia y no como conclusión cerrada':', siendo el punto más fuerte del relevamiento Central'}.`}/>}
+            <FindingRow icon="" text={`El área Central concentra ${total} de los ${combinedTotal} locales relevados a nivel país (Central + Interior), es decir el ${centralSharePct}% del universo total. Con ${covPct}% de cobertura (${conMat}/${total} locales), cada punto porcentual que se gane en Central mueve el resultado global más que uno equivalente en el interior, justamente por ese mayor peso relativo. ${covPct>=DESTACADO?'El nivel general ya es destacado (por encima del 80%); el foco pasa a sostenerlo y cerrar los locales puntuales que faltan.':'Todavía no llega al 80% que marcaría un desempeño destacado, así que reforzar Central primero — antes que expandir en el interior — es donde más rinde la próxima ronda de distribución.'}`}/>
+            {topVolumeCity && <FindingRow icon="" text={`Ordenando las ciudades por volumen relevado (no por %), ${topVolumeCity.city} es la que más pesa con ${topVolumeCity.con+topVolumeCity.sin} de ${total} locales — y su cobertura del ${topVolumeCity.pct}% es ${topVolumeCity.pct>=DESTACADO?'destacada':'buena, pero no destacada (no supera el 80%)'}. Como es la ciudad de mayor peso, cualquier mejora ahí tiene el impacto más grande sobre el resultado de Central en su conjunto.`}/>}
             {lowCity && lowCity.pct < 80 && <FindingRow icon="" text={`Entre las ciudades con al menos ${MIN_SAMPLE} locales relevados (para que el % sea comparable), ${lowCity.city} tiene la menor cobertura: ${lowCity.pct}% (${lowCity.con} de ${lowCity.con+lowCity.sin} locales). Es la zona prioritaria para la próxima ronda de distribución.`}/>}
             {lowSample && <FindingRow icon="" text={`${lowSample.city} muestra ${lowSample.pct}% de cobertura, pero sobre apenas ${lowSample.con+lowSample.sin} local${lowSample.con+lowSample.sin===1?'':'es'} relevado${lowSample.con+lowSample.sin===1?'':'s'}. Con una muestra tan chica, esa cifra no pesa igual que la de una ciudad con muchos locales y no alcanza para tratarla como zona prioritaria por sí sola; conviene relevar más puntos ahí antes de sacar conclusiones.`}/>}
             <FindingRow icon="" text={`Hay ${sinMat} locales sin material BF en Central${sinMatLocales.length?` (listado completo en "Locales sin material, por ciudad", arriba)`:''}. ${sinMat>5?'Al ser un volumen considerable dentro de la zona de mayor peso relativo, representan la oportunidad de reposición con mayor impacto potencial en la cobertura global.':'Son casos puntuales, resolubles con una visita de reposición dirigida a esos locales específicos.'}`}/>
@@ -2485,17 +2539,17 @@ function PageConclusiones() {
         {/* Recomendaciones */}
         <div style={g2}>
           <RecoCard icon="" priority="Alta prioridad" color="#1D4ED8" bg="#EFF6FF"
-            title="Reposición inmediata en zonas con baja cobertura"
-            body={`Coordinar visitas de reposición a los ${sinMat} locales sin material BF, priorizando${lowCity?' '+lowCity.city+' y':''} los puntos de mayor tráfico. El objetivo es superar el ${Math.min(covPct+15,100)}% de cobertura en el próximo relevamiento.`}/>
+            title="Reposición focalizada en las ciudades de mayor volumen"
+            body={`Priorizar la reposición según volumen relevado, no solo por %: ${top3ByVolume.map(c=>`${c.city} (${c.con}/${c.con+c.sin})`).join(', ') || 'las ciudades con más locales'}. Coordinar visitas donde el impacto en la cobertura general de Central sea mayor, empezando por los locales sin material dentro de esas ciudades.`}/>
           <RecoCard icon="" priority="Alta prioridad" color="#15803D" bg="#F0FDF4"
-            title="Capitalizar la fortaleza en zonas de alta cobertura"
-            body={`${topCity?topCity.city+' y otras ciudades con alta cobertura':'Las ciudades con alta cobertura'} deben mantenerse con reposición preventiva. Usar estos locales como referencia de buenas prácticas para el material BF en el área Central.`}/>
+            title="Llevar la cobertura por encima del 80%"
+            body={`${topVolumeCity?`${topVolumeCity.city} concentra el mayor volumen y hoy está en ${topVolumeCity.pct}%. `:''}Sostener la reposición preventiva en las ciudades de mayor peso hasta superar el umbral del 80%, que es el que marca un desempeño realmente destacado.`}/>
           <RecoCard icon="" priority="Acción continua" color="#D97706" bg="#FFFBEB"
             title="Registro fotográfico como estándar de calidad"
             body="Mantener el relevamiento fotográfico en cada visita permite verificar el estado real del material, comparar ciclos y detectar deterioro o mal posicionamiento antes de que impacte en la visibilidad de marca."/>
-          <RecoCard icon="" priority="Próximo ciclo" color="#7C3AED" bg="#F5F3FF"
+          <RecoCard icon="" priority="Acción continua" color="#7C3AED" bg="#F5F3FF"
             title="Relevamiento de seguimiento"
-            body={`Repetir el relevamiento sobre los mismos ${total} locales del área Central para tener una visión comparativa del avance una vez ejecutadas las acciones de reposición.`}/>
+            body={`Repetir el relevamiento sobre los mismos ${total} locales del área Central para tener una visión comparativa del avance una vez ejecutadas las acciones de reposición, con foco en las ciudades de mayor volumen.`}/>
         </div>
       </div>
     );
@@ -2507,11 +2561,16 @@ function PageConclusiones() {
     const covComp  = k.covCP, conComp = k.conCP;
     const knowsWell= k.knowsWell;
     const deptRows = Object.entries(D.deptBF).map(([n,d])=>({name:n,city:D.DEPT_CITY[n]||n,...d,pct:d.total?Math.round(d.con/d.total*100):0})).sort((a,b)=>b.pct-a.pct);
-    const topDept  = deptRows[0];
     const MIN_SAMPLE_DEPT = 3;
+    const DESTACADO = 80;
     const sigDeptRows = deptRows.filter(d => d.total >= MIN_SAMPLE_DEPT);
-    const lowDept  = sigDeptRows.length ? sigDeptRows[sigDeptRows.length-1] : deptRows[deptRows.length-1];
+    /* Departamento de referencia: el de MAYOR VOLUMEN relevado (no el de mayor %),
+       para anclar la lectura en el que realmente pesa, no en uno con 1-2 locales. */
+    const byVolumeDept = [...sigDeptRows].sort((a,b)=>b.total-a.total);
+    const topDept  = byVolumeDept[0] || null;
+    const lowDept  = sigDeptRows.length ? [...sigDeptRows].sort((a,b)=>a.pct-b.pct)[0] : deptRows[deptRows.length-1];
     const lowDeptSmallSample = deptRows.length && deptRows[deptRows.length-1].total < MIN_SAMPLE_DEPT && (!sigDeptRows.length || deptRows[deptRows.length-1].name !== lowDept.name) ? deptRows[deptRows.length-1] : null;
+    const top3DeptByVolume = byVolumeDept.slice(0,3);
     return (
       <div style={col(14)}>
         <div className="exec">
@@ -2521,8 +2580,9 @@ function PageConclusiones() {
             <div className="exec-sub" style={{marginTop:6}}>
               Relevamiento abarcó <b>{total} locales gastronómicos</b> en <b>{k.departments} departamentos del interior</b>.
               La competencia está presente en el {covComp}% de los mismos puntos.
-              {covPct >= 60 ? ` La cobertura del ${covPct}% demuestra una presencia consolidada en el interior del país.`
-                           : ` Con ${covPct}% de cobertura, el interior presenta oportunidades claras de crecimiento.`}
+              {topDept && ` ${topDept.city} (${topDept.name}) concentra el mayor volumen relevado (${topDept.total} locales), con ${topDept.pct}% de cobertura — ${topDept.pct>=DESTACADO?'un resultado destacado.':'bueno, pero no destacado: para eso haría falta superar el 80%.'}`}
+              {covPct >= DESTACADO ? ` A nivel general, la cobertura del ${covPct}% ya supera ese umbral y muestra una presencia consolidada en el interior.`
+                           : ` A nivel general, la cobertura del ${covPct}% todavía no llega al 80%; el interior presenta oportunidades claras de crecimiento.`}
             </div>
           </div>
           <div className="exec-r">
@@ -2539,7 +2599,7 @@ function PageConclusiones() {
               <StatRow label="Con material BF"    value={conMat}    pct={covPct}       color="var(--blue-700)" total={total}/>
               <StatRow label="Sin material BF"    value={sinMat}    pct={100-covPct}   color="var(--red)"      total={total}/>
               <StatRow label="Conocen la promo"   value={knowsWell} pct={total>0?Math.round(knowsWell/total*100):0} color="var(--yellow)" total={total}/>
-              {topDept && <StatRow label={`Mejor dpto: ${topDept.city}`} value={topDept.con} pct={topDept.pct} color="#15803D" total={topDept.total}/>}
+              {topDept && <StatRow label={`Mayor volumen: ${topDept.city}`} value={topDept.con} pct={topDept.pct} color={topDept.pct>=DESTACADO?"#15803D":"var(--blue-mid)"} total={topDept.total}/>}
               {lowDept && <StatRow label={`Oportunidad: ${lowDept.city}`} value={lowDept.con} pct={lowDept.pct} color="var(--orange)" total={lowDept.total}/>}
             </div>
           </div>
@@ -2559,9 +2619,9 @@ function PageConclusiones() {
         <div style={card}>
           <div style={cardHd('blue')}> Hallazgos clave</div>
           <div style={cardBd}>
-            <FindingRow icon="" text={`Cobertura del ${covPct}% en ${total} locales del interior (${conMat} con material BF). ${covPct>=60?'La presencia en el interior es sólida y refleja un trabajo de distribución consistente.':'Hay margen significativo para incrementar la presencia en el interior.'}`}/>
-            {topDept && <FindingRow icon="" text={`${topDept.city} (${topDept.name}) es el departamento con mejor rendimiento con ${topDept.pct}% de cobertura (${topDept.con}/${topDept.total} locales). Es un modelo a replicar en otros departamentos.`}/>}
-            {lowDept && <FindingRow icon="" text={`Entre los departamentos con al menos ${MIN_SAMPLE_DEPT} locales relevados, ${lowDept.city} (${lowDept.name}) registra la menor presencia con ${lowDept.pct}% (${lowDept.con}/${lowDept.total} locales). Es el foco más urgente de atención para la próxima campaña.`}/>}
+            <FindingRow icon="" text={`Cobertura del ${covPct}% en ${total} locales del interior (${conMat} con material BF). ${covPct>=DESTACADO?'Ya supera el 80% que marca un desempeño destacado.':'Hay margen para llevarla por encima del 80%, el umbral que marcaría un desempeño destacado.'}`}/>
+            {topDept && <FindingRow icon="" text={`Ordenando los departamentos por volumen relevado (no por %), ${topDept.city} (${topDept.name}) es el que más pesa con ${topDept.total} locales — y su cobertura del ${topDept.pct}% es ${topDept.pct>=DESTACADO?'destacada':'buena, pero no destacada (no supera el 80%)'}. Al ser el de mayor peso, cualquier mejora ahí tiene el impacto más grande sobre el resultado del interior en su conjunto.`}/>}
+            {lowDept && <FindingRow icon="" text={`Entre los departamentos con al menos ${MIN_SAMPLE_DEPT} locales relevados, ${lowDept.city} (${lowDept.name}) registra la menor presencia con ${lowDept.pct}% (${lowDept.con}/${lowDept.total} locales). Es el foco más urgente de atención.`}/>}
             {lowDeptSmallSample && <FindingRow icon="" text={`${lowDeptSmallSample.city} (${lowDeptSmallSample.name}) muestra ${lowDeptSmallSample.pct}% de cobertura, pero sobre solo ${lowDeptSmallSample.total} local${lowDeptSmallSample.total===1?'':'es'} relevado${lowDeptSmallSample.total===1?'':'s'}. Esa muestra es demasiado chica para pesar igual que un departamento con muchos locales; conviene relevar más puntos ahí antes de priorizarlo.`}/>}
             <FindingRow icon="" text={`El ${Math.round(knowsWell/total*100)}% de los encargados conoce bien la promoción. ${knowsWell/total>=0.6?'Este nivel de conocimiento es un activo importante para la visibilidad de marca en el punto de venta.':'Incrementar la capacitación in-situ puede mejorar significativamente la efectividad de la campaña.'}`}/>
             <FindingRow icon="" text={`La competencia está presente en el ${covComp}% de los locales relevados. ${D.competitors?.[0]?D.competitors[0].label+' lidera con '+D.competitors[0].value+' locales.':''} ${covComp>40?'La presión competitiva es alta y requiere estrategia de diferenciación.':'La presencia competitiva es manejable pero debe monitorearse.'}`}/>
@@ -2570,17 +2630,17 @@ function PageConclusiones() {
 
         <div style={g2}>
           <RecoCard icon="" priority="Alta prioridad" color="#1D4ED8" bg="#EFF6FF"
-            title={`Reforzar presencia en ${lowDept?.city||'departamentos con baja cobertura'}`}
-            body={`${lowDept?lowDept.city+' con '+lowDept.pct+'% de cobertura es la zona más crítica. ':''} Planificar visitas de distribución prioritarias para alcanzar al menos el ${Math.min((lowDept?.pct||0)+25,100)}% en el próximo ciclo.`}/>
+            title="Reposición focalizada en departamentos de mayor volumen"
+            body={`Priorizar la reposición según volumen relevado, no solo por %: ${top3DeptByVolume.map(d=>`${d.city} (${d.con}/${d.total})`).join(', ') || 'los departamentos con más locales'}. ${lowDept?`Reforzar en particular ${lowDept.city}, la zona con menor presencia entre los departamentos con muestra suficiente.`:''}`}/>
           <RecoCard icon="" priority="Alta prioridad" color="#15803D" bg="#F0FDF4"
             title="Capacitación de encargados en el interior"
-            body={`Solo el ${Math.round(knowsWell/total*100)}% de los encargados conoce bien la promo. Implementar un breve protocolo de presentación en cada visita de reposición puede duplicar el conocimiento de la campaña sin costo adicional.`}/>
+            body={`Solo el ${Math.round(knowsWell/total*100)}% de los encargados conoce bien la promo. Implementar un breve protocolo de presentación en cada visita de reposición puede elevar significativamente el conocimiento de la campaña sin costo adicional.`}/>
           <RecoCard icon="" priority="Media prioridad" color="#DC2626" bg="#FEF2F2"
             title="Estrategia de diferenciación frente a competencia"
             body={`Con ${covComp}% de presencia competitiva, se recomienda posicionar el material BF en ubicaciones de mayor visibilidad (entrada, mostrador, vidriera) para superar en impacto visual a ${D.competitors?.[0]?.label||'los competidores'}.`}/>
-          <RecoCard icon="" priority="Próximo ciclo" color="#7C3AED" bg="#F5F3FF"
+          <RecoCard icon="" priority="Acción continua" color="#7C3AED" bg="#F5F3FF"
             title="Relevamiento de seguimiento"
-            body={`Repetir el relevamiento en los mismos ${total} locales para medir el impacto de las acciones. Foco especial en ${lowDept?.city||'departamentos con baja cobertura'} y en los locales donde la competencia supera en visibilidad a BF.`}/>
+            body={`Repetir el relevamiento en los mismos ${total} locales para medir el impacto de las acciones, con foco en los departamentos de mayor volumen y en los locales donde la competencia supera en visibilidad a BF.`}/>
         </div>
       </div>
     );
@@ -2647,7 +2707,7 @@ function PageConclusiones() {
         <div style={g2}>
           <RecoCard icon="" priority="Alta prioridad" color="#1D4ED8" bg="#EFF6FF"
             title="Reposición en tiendas sin material"
-            body={`${sinMat} tiendas aún no cuentan con material BF activo. Priorizar visitas a estos puntos antes de la fecha pico de la campaña para maximizar el impacto de la promoción Día de las Madres.`}/>
+            body={`${sinMat} tiendas aún no cuentan con material BF activo. Priorizar la reposición en estos puntos para maximizar el impacto de la promoción Día de las Madres.`}/>
           <RecoCard icon="" priority="Alta prioridad" color="#15803D" bg="#F0FDF4"
             title="Optimizar visibilidad en vidriera"
             body={`${total-tVisible} tiendas tienen material pero no visible desde afuera. Reposicionar el material hacia vidriera o mostrador puede incrementar la captación de clientes sin costo adicional de distribución.`}/>
@@ -2694,7 +2754,7 @@ function App() {
   const [detalleFilter, setDetalleFilter] = useState(null);
   // Navegación global desde cualquier página hacia el Detalle por Local,
   // ya filtrado por ciudad y por la fuente correspondiente (Central/Interior).
-  window.__goToDetalle = (city, src, physType, matFilt, dept) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'', dept: dept||null, cameFrom: page }); setPage('detalle'); };
+  window.__goToDetalle = (city, src, physType, matFilt, dept, extra) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'', dept: dept||null, extra: extra||null, cameFrom: page }); setPage('detalle'); };
   window.__goBack = () => { setPage(detalleFilter?.cameFrom || 'gastro'); };
   // Guard: TableroData may not be ready if called before bootstrap completes
   const D_safe = window.TableroData;
