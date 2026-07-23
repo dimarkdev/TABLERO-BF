@@ -1944,6 +1944,12 @@ function PageDetalle({ initialFilter }) {
 
   return (
     <>
+      {initialFilter?.cameFrom && (
+        <div onClick={()=>window.__goBack()}
+          style={{display:'inline-flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,fontWeight:600,color:'var(--navy)',marginBottom:10}}>
+          <span style={{fontSize:15}}>←</span> Volver
+        </div>
+      )}
       <div className="sec-lbl">{srcLabel}</div>
       <div className="filterbar" style={{marginBottom:14}}>
         <span className="fl">Relevamiento</span>
@@ -2234,7 +2240,7 @@ function PageConclusiones() {
           </div>
         </div>
 
-        {/* Ranking completo de ciudades por volumen + locales sin material */}
+        {/* Ranking completo de ciudades por volumen */}
         <div style={g2}>
           <div style={card}>
             <div style={cardHd('blue')}> Ciudades de Central — ranking por volumen de locales relevados</div>
@@ -2279,22 +2285,83 @@ function PageConclusiones() {
               })()}
             </div>
           </div>
-          <div style={card}>
-            <div style={cardHd('blue')}> Locales sin material en Central ({sinMat})</div>
-            <div style={cardBd}>
-              {sinMatLocales.length>0 ? (
-                <>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:6,maxHeight:380,overflowY:'auto'}}>
-                    {sinMatLocales.map((l,i)=>(
-                      <span key={i} style={{fontSize:11,background:'var(--bxpal)',border:'1px solid var(--border)',borderRadius:6,padding:'3px 8px',color:'var(--text)'}}>{l.name}{l.city?` · ${l.city}`:''}</span>
+
+          {(() => {
+            const volumeOrder = [...topCities].sort((a,b)=>(b.con+b.sin)-(a.con+a.sin)).map(c=>c.city);
+            const groupByCity = locs => {
+              const map = {};
+              locs.forEach(l => { const c = l.city||'—'; if(!map[c]) map[c]=[]; map[c].push(l); });
+              return Object.keys(map)
+                .sort((a,b)=>volumeOrder.indexOf(a)-volumeOrder.indexOf(b))
+                .map(city=>({city, items:map[city]}));
+            };
+            const sinMatByCity = groupByCity(sinMatLocales);
+            return (
+              <div style={card}>
+                <div style={cardHd('blue')}> Locales sin material, por ciudad ({sinMat})</div>
+                <div style={cardBd}>
+                  {sinMatByCity.length>0 ? (
+                    <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:420,overflowY:'auto'}}>
+                      {sinMatByCity.map((g,i)=>(
+                        <div key={i}>
+                          <div onClick={()=>window.__goToDetalle(g.city,'gastro_central')} style={{cursor:'pointer',fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:4}}>
+                            {g.city} <span style={{color:'var(--muted)',fontWeight:400}}>({g.items.length})</span>
+                          </div>
+                          <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                            {g.items.map((l,j)=>(
+                              <span key={j} style={{fontSize:11,background:'var(--bxpal)',border:'1px solid var(--border)',borderRadius:6,padding:'3px 8px',color:'var(--text)'}}>{l.name}</span>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div style={{fontSize:12,color:'var(--muted)'}}>Todos los locales relevados tienen material BF colocado.</div>}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Locales con material, agrupados por ciudad + materiales físicos encontrados */}
+        <div style={g2}>
+          {(() => {
+            const volumeOrder = [...topCities].sort((a,b)=>(b.con+b.sin)-(a.con+a.sin)).map(c=>c.city);
+            const groupByCity = locs => {
+              const map = {};
+              locs.forEach(l => { const c = l.city||'—'; if(!map[c]) map[c]=[]; map[c].push(l); });
+              return Object.keys(map)
+                .sort((a,b)=>volumeOrder.indexOf(a)-volumeOrder.indexOf(b))
+                .map(city=>({city, items:map[city]}));
+            };
+            const conMatByCity = groupByCity((D.gcLocales||[]).filter(l=>l.material));
+            return (
+              <div style={card}>
+                <div style={cardHd('blue')}> Locales con material BF, por ciudad ({conMat})</div>
+                <div style={cardBd}>
+                  <div style={{display:'flex',flexDirection:'column',gap:10,maxHeight:420,overflowY:'auto'}}>
+                    {conMatByCity.map((g,i)=>(
+                      <div key={i}>
+                        <div onClick={()=>window.__goToDetalle(g.city,'gastro_central')} style={{cursor:'pointer',fontSize:11,fontWeight:700,color:'var(--navy)',marginBottom:4}}>
+                          {g.city} <span style={{color:'var(--muted)',fontWeight:400}}>({g.items.length})</span>
+                        </div>
+                        <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                          {g.items.map((l,j)=>(
+                            <span key={j} style={{fontSize:11,background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:6,padding:'3px 8px',color:'var(--text)'}}>{l.name}</span>
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
-                  <div onClick={()=>window.__goToDetalle('','gastro_central',null,'no')}
-                    style={{marginTop:10,fontSize:11,fontWeight:600,color:'#1D4ED8',cursor:'pointer',textAlign:'right'}}>
-                    Ver detalle completo en fichas individuales →
-                  </div>
-                </>
-              ) : <div style={{fontSize:12,color:'var(--muted)'}}>Todos los locales relevados tienen material BF colocado.</div>}
+                </div>
+              </div>
+            );
+          })()}
+          <div style={card}>
+            <div style={cardHd('blue')}> Materiales encontrados en Central</div>
+            <div style={cardBd}>
+              <div style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>Tipo de soporte físico colocado, sobre {total} locales relevados · tocá una barra para ver esos locales</div>
+              <HBarChart data={D.gcMaterialPhysType} color="#16A34A" total={total}
+                onBarClick={d => window.__goToDetalle('', 'gastro_central', d.negative ? null : d.label, d.negative ? 'no' : '')} />
             </div>
           </div>
         </div>
@@ -2523,7 +2590,8 @@ function App() {
   const [detalleFilter, setDetalleFilter] = useState(null);
   // Navegación global desde cualquier página hacia el Detalle por Local,
   // ya filtrado por ciudad y por la fuente correspondiente (Central/Interior).
-  window.__goToDetalle = (city, src, physType, matFilt) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'' }); setPage('detalle'); };
+  window.__goToDetalle = (city, src, physType, matFilt) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'', cameFrom: page }); setPage('detalle'); };
+  window.__goBack = () => { setPage(detalleFilter?.cameFrom || 'gastro'); };
   // Guard: TableroData may not be ready if called before bootstrap completes
   const D_safe = window.TableroData;
   if (!D_safe || !D_safe.period) {
