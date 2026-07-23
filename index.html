@@ -2215,6 +2215,71 @@ function PageConclusiones() {
           </div>
         </div>
 
+        {/* Ranking completo de ciudades por volumen + locales sin material */}
+        <div style={g2}>
+          <div style={card}>
+            <div style={cardHd('blue')}> Ciudades de Central — ranking por volumen de locales relevados</div>
+            <div style={cardBd}>
+              {(() => {
+                const byVolume = [...topCities].sort((a,b)=>(b.con+b.sin)-(a.con+a.sin));
+                const bySig = byVolume.filter(c=>(c.con+c.sin)>=MIN_SAMPLE);
+                const best = (bySig.length?bySig:byVolume).reduce((m,c)=>c.con>m.con?c:m, (bySig.length?bySig:byVolume)[0]);
+                return (
+                  <>
+                    {best && (
+                      <div style={{marginBottom:10,padding:'8px 12px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,fontSize:12,color:'#15803D',fontWeight:600}}>
+                        🏆 {best.city} es la ciudad con más material BF colocado en Central, considerando el volumen relevado: {best.con} de {best.con+best.sin} locales.
+                      </div>
+                    )}
+                    <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
+                      {byVolume.map((r,i)=>{
+                        const n = r.con+r.sin, lowN = n < MIN_SAMPLE;
+                        return (
+                          <div key={i} onClick={()=>window.__goToDetalle(r.city,'gastro_central')}
+                            style={{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px',cursor:'pointer'}}
+                            title={`Ver detalle de locales en ${r.city}`}>
+                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                              <span style={{fontSize:12,fontWeight:700,color:'var(--navy)'}}>{r.city}</span>
+                              <div style={{display:'flex',alignItems:'center',gap:6}}>
+                                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)'}}>{n} locales</span>
+                                <span style={{fontSize:10,fontWeight:800,color:'#15803D',background:'#DCFCE7',borderRadius:10,padding:'1px 7px'}}>Nº {i+1}</span>
+                              </div>
+                            </div>
+                            <div style={{fontSize:11,color: lowN?'var(--orange)':'var(--text)',marginBottom:5}}>
+                              Cobertura: {r.pct}% ({r.con} con material BF){lowN && ' · ⚠ muestra baja'}
+                            </div>
+                            <div style={{height:6,background:'#DCFCE7',borderRadius:3,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#16A34A',borderRadius:3}}/>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+          <div style={card}>
+            <div style={cardHd('blue')}> Locales sin material en Central ({sinMat})</div>
+            <div style={cardBd}>
+              {sinMatLocales.length>0 ? (
+                <>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:6,maxHeight:380,overflowY:'auto'}}>
+                    {sinMatLocales.map((l,i)=>(
+                      <span key={i} style={{fontSize:11,background:'var(--bxpal)',border:'1px solid var(--border)',borderRadius:6,padding:'3px 8px',color:'var(--text)'}}>{l.name}{l.city?` · ${l.city}`:''}</span>
+                    ))}
+                  </div>
+                  <div onClick={()=>window.__goToDetalle('','gastro_central',null,'no')}
+                    style={{marginTop:10,fontSize:11,fontWeight:600,color:'#1D4ED8',cursor:'pointer',textAlign:'right'}}>
+                    Ver detalle completo en fichas individuales →
+                  </div>
+                </>
+              ) : <div style={{fontSize:12,color:'var(--muted)'}}>Todos los locales relevados tienen material BF colocado.</div>}
+            </div>
+          </div>
+        </div>
+
         {/* Hallazgos */}
         <div style={card}>
           <div style={cardHd('blue')}> Hallazgos clave</div>
@@ -2223,18 +2288,7 @@ function PageConclusiones() {
             {topCity && <FindingRow icon="" text={`${topCity.city} lidera con ${topCity.pct}% de cobertura (${topCity.con} de ${topCity.con+topCity.sin} locales)${(topCity.con+topCity.sin)<MIN_SAMPLE?', aunque con una muestra chica (menos de 3 locales relevados), por lo que conviene tomarlo como referencia y no como conclusión cerrada':', siendo el punto más fuerte del relevamiento Central'}.`}/>}
             {lowCity && lowCity.pct < 80 && <FindingRow icon="️" text={`Entre las ciudades con al menos ${MIN_SAMPLE} locales relevados (para que el % sea comparable), ${lowCity.city} tiene la menor cobertura: ${lowCity.pct}% (${lowCity.con} de ${lowCity.con+lowCity.sin} locales). Es la zona prioritaria para la próxima ronda de distribución.`}/>}
             {lowSample && <FindingRow icon="" text={`${lowSample.city} muestra ${lowSample.pct}% de cobertura, pero sobre apenas ${lowSample.con+lowSample.sin} local${lowSample.con+lowSample.sin===1?'':'es'} relevado${lowSample.con+lowSample.sin===1?'':'s'}. Con una muestra tan chica, esa cifra no pesa igual que la de una ciudad con muchos locales y no alcanza para tratarla como zona prioritaria por sí sola; conviene relevar más puntos ahí antes de sacar conclusiones.`}/>}
-            <FindingRow icon="" text={`Hay ${sinMat} locales sin material BF en Central${sinMatLocales.length?` (ver listado abajo)`:''}. ${sinMat>5?'Al ser un volumen considerable dentro de la zona de mayor peso relativo, representan la oportunidad de reposición con mayor impacto potencial en la cobertura global.':'Son casos puntuales, resolubles con una visita de reposición dirigida a esos locales específicos.'}`}/>
-            {sinMatLocales.length>0 && (
-              <div style={{marginTop:8,padding:'10px 12px',background:'var(--bxpal)',borderRadius:8,border:'1px solid var(--border2)'}}>
-                <div style={{fontSize:10,fontWeight:700,color:'var(--muted)',textTransform:'uppercase',letterSpacing:'.06em',marginBottom:6}}>Locales sin material BF ({sinMatLocales.length})</div>
-                <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-                  {sinMatLocales.slice(0,20).map((l,i)=>(
-                    <span key={i} style={{fontSize:11,background:'var(--white)',border:'1px solid var(--border)',borderRadius:6,padding:'3px 8px',color:'var(--text)'}}>{l.name}{l.city?` · ${l.city}`:''}</span>
-                  ))}
-                  {sinMatLocales.length>20 && <span style={{fontSize:11,color:'var(--muted)',padding:'3px 8px'}}>+{sinMatLocales.length-20} más — ver detalle completo en "Detalle de locales"</span>}
-                </div>
-              </div>
-            )}
+            <FindingRow icon="" text={`Hay ${sinMat} locales sin material BF en Central${sinMatLocales.length?` (listado completo en "Locales sin material en Central", arriba)`:''}. ${sinMat>5?'Al ser un volumen considerable dentro de la zona de mayor peso relativo, representan la oportunidad de reposición con mayor impacto potencial en la cobertura global.':'Son casos puntuales, resolubles con una visita de reposición dirigida a esos locales específicos.'}`}/>
           </div>
         </div>
 
