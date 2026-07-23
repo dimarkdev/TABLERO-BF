@@ -1747,63 +1747,73 @@ function PageGastro({ onTabChange }) {
           <KpiCard accent="r" label="Sin material BF"    value={D.gcSinMatK}  sub={`${100-D.gcCovPct}% del total`} subTone="neg" />
         </div>
         <div className="grid-2">
-          <Card title="Tipo de material / oferta"><HBarChart data={D.gcMaterialType} color="#16A34A" /></Card>
-          <Card title="% de locales según el estado del material BF colocado"><Donut data={D.gcMaterialState.length ? D.gcMaterialState : [{label:'Sin datos',value:1,color:'#CBD5E1'}]} /></Card>
+          <Card title="% de locales según el estado del material BF colocado" sub="Sobre los locales que sí tienen material colocado">
+            <HBarChart data={D.gcMaterialState.length ? D.gcMaterialState : [{label:'Sin datos',value:1}]} color="#1D4ED8" total={D.gcConMat} />
+          </Card>
+          <Card title="Materiales encontrados, por ciudad" sub="Cantidad total de materiales físicos hallados en cada ciudad (un local puede tener más de uno) · ordenado de mayor a menor · tocá una ciudad para ver sus locales">
+            {(() => {
+              const cityMatCounts = {};
+              (D.gcLocales||[]).forEach(l => {
+                const c = l.city || '—';
+                cityMatCounts[c] = (cityMatCounts[c]||0) + (l.physTypes||[]).length;
+              });
+              const rows = Object.entries(cityMatCounts)
+                .map(([label,value])=>({label,value}))
+                .filter(r=>r.value>0)
+                .sort((a,b)=>b.value-a.value);
+              if (!rows.length) return <div className="nodata">Sin datos aún.</div>;
+              return <HBarChart data={rows} color="#16A34A" onBarClick={d => window.__goToDetalle(d.label, 'gastro_central')} />;
+            })()}
+          </Card>
         </div>
 
-        {/* Ranking de ciudades por volumen + materiales físicos encontrados */}
-        <div className="grid-2">
-          <div className="card" style={{overflow:'hidden'}}>
-            <div className="card-h">Ciudades de Central — ranking por volumen de locales relevados</div>
-            <div className="card-b">
-              {(() => {
-                const MIN_SAMPLE = 3;
-                const byVolume = (D.gcCityBF||[])
-                  .map(r=>({...r, n:r.con+r.sin, pct: r.con+r.sin>0?Math.round(r.con/(r.con+r.sin)*100):0}))
-                  .sort((a,b)=>b.n-a.n);
-                const bySig = byVolume.filter(c=>c.n>=MIN_SAMPLE);
-                const best = (bySig.length?bySig:byVolume).reduce((m,c)=>c.con>m.con?c:m, (bySig.length?bySig:byVolume)[0]);
-                if (!byVolume.length) return <div className="nodata">Sin datos aún.</div>;
-                return (
-                  <>
-                    {best && (
-                      <div style={{marginBottom:10,padding:'8px 12px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,fontSize:12,color:'#15803D',fontWeight:600}}>
-                        🏆 {best.city} es la ciudad con más material BF colocado en Central, considerando el volumen relevado: {best.con} de {best.con+best.sin} locales.
-                      </div>
-                    )}
-                    <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
-                      {byVolume.map((r,i)=>{
-                        const lowN = r.n < MIN_SAMPLE;
-                        return (
-                          <div key={i} onClick={()=>window.__goToDetalle(r.city,'gastro_central')}
-                            style={{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px',cursor:'pointer'}}
-                            title={`Ver detalle de locales en ${r.city}`}>
-                            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
-                              <span style={{fontSize:12,fontWeight:700,color:'var(--navy)'}}>{r.city}</span>
-                              <div style={{display:'flex',alignItems:'center',gap:6}}>
-                                <span style={{fontSize:11,fontWeight:700,color:'var(--muted)'}}>{r.n} locales</span>
-                                <span style={{fontSize:10,fontWeight:800,color:'#15803D',background:'#DCFCE7',borderRadius:10,padding:'1px 7px'}}>Nº {i+1}</span>
-                              </div>
-                            </div>
-                            <div style={{fontSize:11,color: lowN?'var(--orange)':'var(--text)',marginBottom:5}}>
-                              Cobertura: {r.pct}% ({r.con} con material BF){lowN && ' · ⚠ muestra baja'}
-                            </div>
-                            <div style={{height:6,background:'#DCFCE7',borderRadius:3,overflow:'hidden'}}>
-                              <div style={{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#16A34A',borderRadius:3}}/>
+        {/* Ranking de ciudades por volumen */}
+        <div className="card" style={{overflow:'hidden'}}>
+          <div className="card-h">Ciudades de Central — ranking por volumen de locales relevados</div>
+          <div className="card-b">
+            {(() => {
+              const MIN_SAMPLE = 3;
+              const byVolume = (D.gcCityBF||[])
+                .map(r=>({...r, n:r.con+r.sin, pct: r.con+r.sin>0?Math.round(r.con/(r.con+r.sin)*100):0}))
+                .sort((a,b)=>b.n-a.n);
+              const bySig = byVolume.filter(c=>c.n>=MIN_SAMPLE);
+              const best = (bySig.length?bySig:byVolume).reduce((m,c)=>c.con>m.con?c:m, (bySig.length?bySig:byVolume)[0]);
+              if (!byVolume.length) return <div className="nodata">Sin datos aún.</div>;
+              return (
+                <>
+                  {best && (
+                    <div style={{marginBottom:10,padding:'8px 12px',background:'#F0FDF4',border:'1px solid #86EFAC',borderRadius:8,fontSize:12,color:'#15803D',fontWeight:600}}>
+                      🏆 {best.city} es la ciudad con más material BF colocado en Central, considerando el volumen relevado: {best.con} de {best.con+best.sin} locales.
+                    </div>
+                  )}
+                  <div style={{display:'flex',flexDirection:'column',gap:8,maxHeight:420,overflowY:'auto'}}>
+                    {byVolume.map((r,i)=>{
+                      const lowN = r.n < MIN_SAMPLE;
+                      return (
+                        <div key={i} onClick={()=>window.__goToDetalle(r.city,'gastro_central')}
+                          style={{border:'1px solid var(--border2)',borderRadius:8,padding:'8px 10px',cursor:'pointer'}}
+                          title={`Ver detalle de locales en ${r.city}`}>
+                          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                            <span style={{fontSize:12,fontWeight:700,color:'var(--navy)'}}>{r.city}</span>
+                            <div style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{fontSize:11,fontWeight:700,color:'var(--muted)'}}>{r.n} locales</span>
+                              <span style={{fontSize:10,fontWeight:800,color:'#15803D',background:'#DCFCE7',borderRadius:10,padding:'1px 7px'}}>Nº {i+1}</span>
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
+                          <div style={{fontSize:11,color: lowN?'var(--orange)':'var(--text)',marginBottom:5}}>
+                            Cobertura: {r.pct}% ({r.con} con material BF){lowN && ' · ⚠ muestra baja'}
+                          </div>
+                          <div style={{height:6,background:'#DCFCE7',borderRadius:3,overflow:'hidden'}}>
+                            <div style={{height:'100%',width:r.pct+'%',background: lowN?'var(--orange)':'#16A34A',borderRadius:3}}/>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              );
+            })()}
           </div>
-          <Card title="Materiales encontrados en Central" sub={`Tipo de soporte físico colocado, sobre ${D.gcTotal} locales relevados · tocá una barra para ver esos locales`}>
-            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" total={D.gcTotal}
-              onBarClick={d => window.__goToDetalle('', 'gastro_central', d.negative ? null : d.label, d.negative ? 'no' : '')} />
-          </Card>
         </div>
       </>}
 
