@@ -725,6 +725,7 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
     name: N(r.LOCAL), city: fixCityName(r.CIUDAD),
     type: N(r.TIPO_LOCAL)||"—",
     material: YES(r.HAY_MATERIAL_DESIGNADO),
+    physTypes: N(r.MATERIAL_CORRESPONDE_TIPO).split(",").map(m=>m.replace(/[()]/g,"").replace(/\s+/g," ").trim()).filter(Boolean),
     state: N(r.BENEFICIO_EXHIBIDO||r.ESTADO_MATERIAL)||"—",
     knows: N(r.ENCARGADO_CONOCE_PROMO)==="Si, la conoce bien"?"Conoce bien":
            N(r.ENCARGADO_CONOCE_PROMO).includes("parcial")?"Parcialmente":
@@ -855,6 +856,7 @@ function buildTableroData(rawG, rawC, rawT, rawOT=[], rawGC=[]) {
   const gcLocales = rawGC.map(r=>({
     name: GC_LOCAL(r), city: GC_CIUDAD(r),
     material: YES(GC_MAT(r)),
+    physTypes: (N(r["MATERIAL_CORRESPONDE_TIPO_A"])||N(r["MATERIAL_CORRESPONDE_TIPO_B"])).split(",").map(m=>normMat(m)).filter(Boolean),
     state: GC_BENE(r)||"—",
     obs: GC_OBS(r),
     fotos: Object.keys(r).filter(k=>k.trim().toLowerCase().includes('foto')).map(k=>N(r[k])).filter(Boolean),
@@ -1078,12 +1080,14 @@ function GroupedBarChart({ data, height = 230 }) {
   );
 }
 
-function HBarChart({ data, color = 'var(--blue)', total = null }) {
+function HBarChart({ data, color = 'var(--blue)', total = null, onBarClick = null }) {
   const max = Math.max(...data.map(d => d.value||0), 1);
   return (
     <div className="hbar">
       {data.map((d, i) => (
-        <div className="hbar-row" key={i}>
+        <div className="hbar-row" key={i} onClick={onBarClick ? () => onBarClick(d) : undefined}
+          style={onBarClick ? {cursor:'pointer'} : null}
+          title={onBarClick ? `Ver los locales con "${d.label}" →` : undefined}>
           <span className="hbar-lbl">{d.label}</span>
           <div className="hbar-track">
             <div className="hbar-fill" style={{ width: ((d.value||0) / max * 100) + '%', background: d.negative ? 'var(--red)' : color }} />
@@ -1653,11 +1657,13 @@ function PageGastro({ onTabChange }) {
           </div>
         </div>
         <div className="grid-2">
-          <Card title="Materiales encontrados en Interior" sub={`Sobre ${D.locales.length} locales relevados en total · cada barra indica en cuántos de esos ${D.locales.length} se encontró ese material (un local puede tener más de uno)`}>
-            <HBarChart data={D.materialPhysType} color="var(--blue-mid)" total={D.locales.length} />
+          <Card title="Materiales encontrados en Interior" sub={`Sobre ${D.locales.length} locales relevados en total · cada barra indica en cuántos de esos ${D.locales.length} se encontró ese material (un local puede tener más de uno) · tocá una barra para ver esos locales`}>
+            <HBarChart data={D.materialPhysType} color="var(--blue-mid)" total={D.locales.length}
+              onBarClick={d => window.__goToDetalle('', 'gastro_int', d.negative ? null : d.label, d.negative ? 'no' : '')} />
           </Card>
-          <Card title="Materiales encontrados en Central" sub={`Sobre ${(D.gcLocales||[]).length} locales relevados en total · cada barra indica en cuántos de esos ${(D.gcLocales||[]).length} se encontró ese material (un local puede tener más de uno)`}>
-            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" total={(D.gcLocales||[]).length} />
+          <Card title="Materiales encontrados en Central" sub={`Sobre ${(D.gcLocales||[]).length} locales relevados en total · cada barra indica en cuántos de esos ${(D.gcLocales||[]).length} se encontró ese material (un local puede tener más de uno) · tocá una barra para ver esos locales`}>
+            <HBarChart data={D.gcMaterialPhysType} color="#16A34A" total={(D.gcLocales||[]).length}
+              onBarClick={d => window.__goToDetalle('', 'gastro_central', d.negative ? null : d.label, d.negative ? 'no' : '')} />
           </Card>
         </div>
       </>}
@@ -1863,7 +1869,8 @@ function PageDetalle({ initialFilter }) {
   const D = window.TableroData; if(!D) return null;
   const [open, setOpen] = useState(null);
   const [city, setCity] = useState(initialFilter?.city || '');
-  const [matFilt, setMatFilt] = useState('');
+  const [matFilt, setMatFilt] = useState(initialFilter?.matFilt || '');
+  const [physFilt, setPhysFilt] = useState(initialFilter?.physType || '');
   const [src, setSrc] = useState(initialFilter?.src || 'gastro_int');
 
   const SOURCES = [
@@ -1896,9 +1903,11 @@ function PageDetalle({ initialFilter }) {
                      }));
 
   const cities = [...new Set(allLocales.map(l=>l.city).filter(Boolean))].sort();
+  const physTypesList = [...new Set(allLocales.flatMap(l=>l.physTypes||[]))].sort();
   const rows = allLocales.filter(l =>
     (!city || l.city===city) &&
-    (!matFilt || (matFilt==='si' ? l.material : !l.material))
+    (!matFilt || (matFilt==='si' ? l.material : !l.material)) &&
+    (!physFilt || (l.physTypes||[]).includes(physFilt))
   );
 
   const tone = s => {
@@ -1919,7 +1928,7 @@ function PageDetalle({ initialFilter }) {
       <div className="sec-lbl">{srcLabel}</div>
       <div className="filterbar" style={{marginBottom:14}}>
         <span className="fl">Relevamiento</span>
-        <select className="fs" value={src} onChange={e=>{setSrc(e.target.value);setOpen(null);setCity('');setMatFilt('');}}>
+        <select className="fs" value={src} onChange={e=>{setSrc(e.target.value);setOpen(null);setCity('');setMatFilt('');setPhysFilt('');}}>
           {SOURCES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
         {cities.length > 0 && <>
@@ -1935,6 +1944,13 @@ function PageDetalle({ initialFilter }) {
           <option value="si">Con material</option>
           <option value="no">Sin material</option>
         </select>
+        {physTypesList.length > 0 && <>
+          <span className="fl">Tipo de material</span>
+          <select className="fs" value={physFilt} onChange={e=>{setPhysFilt(e.target.value);setOpen(null);}}>
+            <option value="">Todos</option>
+            {physTypesList.map(p=><option key={p} value={p}>{p}</option>)}
+          </select>
+        </>}
         <span className="rc">{rows.length} locales</span>
       </div>
       <div className="lg">
@@ -2434,7 +2450,7 @@ function App() {
   const [detalleFilter, setDetalleFilter] = useState(null);
   // Navegación global desde cualquier página hacia el Detalle por Local,
   // ya filtrado por ciudad y por la fuente correspondiente (Central/Interior).
-  window.__goToDetalle = (city, src) => { setDetalleFilter({ city, src }); setPage('detalle'); };
+  window.__goToDetalle = (city, src, physType, matFilt) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'' }); setPage('detalle'); };
   // Guard: TableroData may not be ready if called before bootstrap completes
   const D_safe = window.TableroData;
   if (!D_safe || !D_safe.period) {
