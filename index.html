@@ -1151,12 +1151,14 @@ function GroupedBarChart({ data, height = 230 }) {
   );
 }
 
-function GroupedHBarChart({ data, maxHeight = 420 }) {
+function GroupedHBarChart({ data, maxHeight = 420, onCityClick = null }) {
   const max = Math.max(...data.map(d => Math.max(d.con||0, d.sin||0)), 1);
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16,maxHeight,overflowY:'auto',paddingRight:4}}>
       {data.map((d, i) => (
-        <div key={i}>
+        <div key={i} onClick={onCityClick ? () => onCityClick(d) : undefined}
+          style={onCityClick ? {cursor:'pointer',borderRadius:8,padding:'6px 8px',margin:'-6px -8px'} : null}
+          title={onCityClick ? `Ver detalle de locales en ${d.city} →` : undefined}>
           <div style={{fontSize:12,fontWeight:700,color:'var(--navy)',marginBottom:6}}>{d.city}</div>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:4}}>
             <span style={{fontSize:10,color:'var(--muted)',width:66,flexShrink:0}}>Con material</span>
@@ -1390,16 +1392,20 @@ function Card({ title, sub, action, children, span }) {
   );
 }
 
-function RankList({ data, deptCity, mode='bf' }) {
+function RankList({ data, deptCity, mode='bf', src }) {
   const rows = Object.entries(data)
     .map(([name, d]) => ({ name, ...d, pct: d.total ? Math.round(d.con/d.total*100) : 0 }))
     .sort((a,b) => b.pct - a.pct);
   const color = mode==='bf' ? 'var(--blue-700)' : 'var(--red)';
   const track = mode==='bf' ? 'var(--bpale)'    : 'var(--rsoft)';
+  const clickable = !!src;
   return (
     <div className="rank">
       {rows.map((r, i) => (
-        <div className="rank-row" key={r.name}>
+        <div className="rank-row" key={r.name}
+          onClick={clickable ? () => window.__goToDetalle('', src, null, '', r.name) : undefined}
+          style={clickable ? {cursor:'pointer'} : null}
+          title={clickable ? `Ver detalle de locales en ${r.name}` : undefined}>
           <span className="rank-i">{i+1}</span>
           <div className="rank-main">
             <div className="rank-top">
@@ -1574,7 +1580,7 @@ function HeatBlock({ mode }) {
         </div>
       </div>
       <Card title="% de locales relevados donde se detectó material BF (por departamento)">
-        <RankList data={data} deptCity={D.DEPT_CITY} mode={mode} />
+        <RankList data={data} deptCity={D.DEPT_CITY} mode={mode} src={mode==='bf'?'gastro_int':'compe'} />
       </Card>
     </div>
   );
@@ -1618,7 +1624,7 @@ function PageResumen() {
       <div className="grid-2">
         <Card title="Locales por ciudad — Con vs Sin material BF">
           <LegendRow items={[{label:'Con material',color:'var(--blue-700)'},{label:'Sin material',color:'#CBD5E1'}]} />
-          <GroupedHBarChart data={D.cityBF} />
+          <GroupedHBarChart data={D.cityBF} onCityClick={d => window.__goToDetalle(d.city, 'gastro_int')} />
         </Card>
         <Card title="Tipo de material relevado">
           <HBarChart data={D.materialType} color="var(--blue-mid)" />
@@ -1857,7 +1863,7 @@ function PageGastro({ onTabChange }) {
         <div className="grid-2">
           <Card title="Locales por ciudad — Con vs Sin material">
             <LegendRow items={[{label:'Con material',color:'var(--blue-700)'},{label:'Sin material',color:'#CBD5E1'}]} />
-            <GroupedHBarChart data={D.cityBF} />
+            <GroupedHBarChart data={D.cityBF} onCityClick={d => window.__goToDetalle(d.city, 'gastro_int')} />
           </Card>
           <Card title="Tipo de material"><HBarChart data={D.materialType} color="var(--blue-mid)" /></Card>
         </div>
@@ -2032,6 +2038,7 @@ function PageDetalle({ initialFilter }) {
   const D = window.TableroData; if(!D) return null;
   const [open, setOpen] = useState(null);
   const [city, setCity] = useState(initialFilter?.city || '');
+  const [dept, setDept] = useState(initialFilter?.dept || '');
   const [matFilt, setMatFilt] = useState(initialFilter?.matFilt || '');
   const [physFilt, setPhysFilt] = useState(initialFilter?.physType || '');
   const [src, setSrc] = useState(initialFilter?.src || 'gastro_int');
@@ -2066,9 +2073,11 @@ function PageDetalle({ initialFilter }) {
                      }));
 
   const cities = [...new Set(allLocales.map(l=>l.city).filter(Boolean))].sort();
+  const depts  = [...new Set(allLocales.map(l=>CITY_DEPT[l.city]||CITY_DEPT[(l.city||'').toLowerCase()]).filter(Boolean))].sort();
   const physTypesList = [...new Set(allLocales.flatMap(l=>l.physTypes||[]))].sort();
   const rows = allLocales.filter(l =>
     (!city || l.city===city) &&
+    (!dept || (CITY_DEPT[l.city]||CITY_DEPT[(l.city||'').toLowerCase()])===dept) &&
     (!matFilt || (matFilt==='si' ? l.material : !l.material)) &&
     (!physFilt || (l.physTypes||[]).includes(physFilt))
   );
@@ -2097,9 +2106,16 @@ function PageDetalle({ initialFilter }) {
       <div className="sec-lbl">{srcLabel}</div>
       <div className="filterbar" style={{marginBottom:14}}>
         <span className="fl">Relevamiento</span>
-        <select className="fs" value={src} onChange={e=>{setSrc(e.target.value);setOpen(null);setCity('');setMatFilt('');setPhysFilt('');}}>
+        <select className="fs" value={src} onChange={e=>{setSrc(e.target.value);setOpen(null);setCity('');setDept('');setMatFilt('');setPhysFilt('');}}>
           {SOURCES.map(s=><option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
+        {depts.length > 0 && <>
+          <span className="fl">Departamento</span>
+          <select className="fs" value={dept} onChange={e=>{setDept(e.target.value);setOpen(null);}}>
+            <option value="">Todos</option>
+            {depts.map(d=><option key={d}>{d}</option>)}
+          </select>
+        </>}
         {cities.length > 0 && <>
           <span className="fl">Ciudad</span>
           <select className="fs" value={city} onChange={e=>{setCity(e.target.value);setOpen(null);}}>
@@ -2678,7 +2694,7 @@ function App() {
   const [detalleFilter, setDetalleFilter] = useState(null);
   // Navegación global desde cualquier página hacia el Detalle por Local,
   // ya filtrado por ciudad y por la fuente correspondiente (Central/Interior).
-  window.__goToDetalle = (city, src, physType, matFilt) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'', cameFrom: page }); setPage('detalle'); };
+  window.__goToDetalle = (city, src, physType, matFilt, dept) => { setDetalleFilter({ city, src, physType: physType||null, matFilt: matFilt||'', dept: dept||null, cameFrom: page }); setPage('detalle'); };
   window.__goBack = () => { setPage(detalleFilter?.cameFrom || 'gastro'); };
   // Guard: TableroData may not be ready if called before bootstrap completes
   const D_safe = window.TableroData;
